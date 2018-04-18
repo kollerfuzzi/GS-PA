@@ -6,10 +6,14 @@ import com.jme3.input.MouseInput;
 import com.jme3.input.controls.AnalogListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.MouseButtonTrigger;
+import com.jme3.light.DirectionalLight;
 import com.jme3.light.PointLight;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
 import com.jme3.math.Matrix3f;
+import com.jme3.math.Quaternion;
+import com.jme3.math.Transform;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Geometry;
@@ -25,9 +29,11 @@ import com.jme3.terrain.heightmap.HeightMap;
 import com.jme3.terrain.heightmap.ImageBasedHeightMap;
 import com.jme3.texture.Texture;
 import com.jme3.texture.Texture.WrapMode;
+import com.jme3.util.SkyFactory;
 import com.sun.javafx.collections.MappingChange.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 
 /**
@@ -46,6 +52,7 @@ public class GSPA extends SimpleApplication {
     private Material mat_terrain;
 
     private List<PauschalAngreifendesBullet> bullets = new ArrayList<>();
+    private List<Spatial> stifte = new ArrayList<>();
 
     public static void main(String[] args) {
         GSPA app = new GSPA();
@@ -62,6 +69,11 @@ public class GSPA extends SimpleApplication {
         geom.setMaterial(mat);
 
         flyCam.setMoveSpeed(0);
+        
+        //SKY
+        Texture skyTexture = assetManager.loadTexture("Textures/sky.png");
+        Spatial sky = SkyFactory.createSky(assetManager, skyTexture, skyTexture, skyTexture, skyTexture, skyTexture, skyTexture);
+        rootNode.attachChild(sky);
 
         inputManager.addMapping("Up", new KeyTrigger(KeyInput.KEY_W));
         inputManager.addMapping("Left", new KeyTrigger(KeyInput.KEY_A));
@@ -127,8 +139,31 @@ public class GSPA extends SimpleApplication {
         TerrainLodControl control = new TerrainLodControl(terrain, getCamera());
         terrain.addControl(control);
 
+        // STIFT
+        Random r = new Random();
+        for (int i = 0; i < 100; i++) {
+            Spatial stift;
+//            stift = assetManager.loadModel("Models/belistift/belistift.j3o");
+            stift = assetManager.loadModel("Models/cup_pencil/cup_pencil.j3o");
+            stift.move(new Vector3f(2 + 0.2f * i, -0.5f, 2 + 0.2f * i));
+            stift.setLocalScale(0.1f);
+            stifte.add(stift);
+            rootNode.attachChild(stift);
+        }
+
+//        stift.setMaterial(mat);
+        /**
+         * A white, directional light source
+         */
+        DirectionalLight sun = new DirectionalLight();
+        sun.setDirection((new Vector3f(-0.5f, -0.5f, -0.5f)).normalizeLocal());
+        sun.setColor(ColorRGBA.White);
+        rootNode.addLight(sun);
+
         rootNode.attachChild(geom);
     }
+    
+    float waveVal = 0;
 
     @Override
     public void simpleUpdate(float tpf) {
@@ -142,7 +177,7 @@ public class GSPA extends SimpleApplication {
                 jumping = false;
             }
         }
-        
+
         --bulletTimeout;
 
         for (PauschalAngreifendesBullet b : bullets) {
@@ -150,6 +185,16 @@ public class GSPA extends SimpleApplication {
         }
 
         cam.setLocation(cam.getLocation().add(moveVectorSum));
+
+        float oneDegree = FastMath.DEG_TO_RAD * 1;
+        waveVal += 0.1f;
+        for(Spatial stift: stifte) {
+            stift.rotate(oneDegree, 0, oneDegree / 2);
+            stift.setLocalTranslation(stift.getLocalTranslation().x, 
+                    (float)-Math.sin(waveVal + stift.getLocalTranslation().x)/10, 
+                    stift.getLocalTranslation().z);
+        }
+        
     }
 
     boolean jumping = false;
@@ -200,7 +245,7 @@ public class GSPA extends SimpleApplication {
     }
 
     public void shoot(String name, float value, float tpf) {
-        
+
         if (bulletTimeout <= 0) {
             PauschalAngreifendesBullet bullet
                     = new PauschalAngreifendesBullet(assetManager, cam.getLocation(), cam.getDirection());
@@ -208,7 +253,7 @@ public class GSPA extends SimpleApplication {
             rootNode.attachChild(bullet);
             bulletTimeout = 30;
         }
-        
+
     }
 
     @Override
