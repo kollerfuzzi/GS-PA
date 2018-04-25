@@ -1,8 +1,19 @@
 package mygame;
 
 import com.jme3.app.SimpleApplication;
+import com.jme3.asset.plugins.ZipLocator;
+import com.jme3.bullet.BulletAppState;
+import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
+import com.jme3.bullet.collision.shapes.CollisionShape;
+import com.jme3.bullet.control.CharacterControl;
+import com.jme3.bullet.control.RigidBodyControl;
+import com.jme3.bullet.util.CollisionShapeFactory;
+import com.jme3.collision.CollisionResult;
+import com.jme3.collision.CollisionResults;
+import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
 import com.jme3.input.MouseInput;
+import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.AnalogListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.MouseButtonTrigger;
@@ -10,30 +21,26 @@ import com.jme3.light.DirectionalLight;
 import com.jme3.light.PointLight;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.FastMath;
 import com.jme3.math.Matrix3f;
-import com.jme3.math.Quaternion;
-import com.jme3.math.Transform;
+import com.jme3.math.Ray;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Geometry;
+import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
-import static com.jme3.scene.plugins.fbx.mesh.FbxLayerElement.Type.Texture;
 import com.jme3.scene.shape.Box;
-import com.jme3.scene.shape.Quad;
-import com.jme3.terrain.geomipmap.TerrainGrid;
+import com.jme3.system.AppSettings;
 import com.jme3.terrain.geomipmap.TerrainLodControl;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import com.jme3.terrain.heightmap.AbstractHeightMap;
-import com.jme3.terrain.heightmap.HeightMap;
 import com.jme3.terrain.heightmap.ImageBasedHeightMap;
 import com.jme3.texture.Texture;
-import com.jme3.texture.Texture.WrapMode;
 import com.jme3.util.SkyFactory;
-import com.sun.javafx.collections.MappingChange.Map;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -42,39 +49,295 @@ import java.util.function.Consumer;
  *
  * @author normenhansen
  */
-public class GSPA extends SimpleApplication {
+public class GSPA extends SimpleApplication implements ActionListener {
 
     private final float movementSpeed = 10;
     private float sinusWaveMovePos = 0;
     private float bulletTimeout = 0;
 
-    private TerrainQuad terrain = new TerrainQuad();
-    private Material mat_terrain;
+    //______________________________
+    private Spatial sceneModel;
+    private BulletAppState bulletAppState;
+    private RigidBodyControl landscape;
+    private CharacterControl player;
+    private Vector3f walkDirection = new Vector3f();
+//    private boolean left = false, right = false, up = false, down = false;
+    private Set<String> inputEvents = new HashSet<String>();
+    //______________________________
 
     private List<PauschalAngreifendesBullet> bullets = new ArrayList<>();
-    private List<Spatial> stifte = new ArrayList<>();
+
+    private List<Enemy> enemies = new ArrayList<>();
 
     public static void main(String[] args) {
         GSPA app = new GSPA();
+        AppSettings settings = new AppSettings(false);
+        settings.setSettingsDialogImage("Textures/title-banner.png");
+        app.settings = settings;
+        app.settings.setTitle("GegenSchlägst: pauschal angreifend");
         app.start();
     }
 
     @Override
     public void simpleInitApp() {
-        Box b = new Box(1, 2, 1);
-        Geometry geom = new Geometry("Box", b);
+        /**
+         * Set up Physics
+         */
+        bulletAppState = new BulletAppState();
+        stateManager.attach(bulletAppState);
+        //bulletAppState.getPhysicsSpace().enableDebug(assetManager);
 
-        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", ColorRGBA.Blue);
-        geom.setMaterial(mat);
+        // We re-use the flyby camera for rotation, while positioning is handled by physics
+        viewPort.setBackgroundColor(new ColorRGBA(0.7f, 0.8f, 1f, 1f));
+        flyCam.setMoveSpeed(100);
 
+        // We load the scene from the zip file and adjust its size.
+        assetManager.registerLocator("town.zip", ZipLocator.class);
+        sceneModel = assetManager.loadModel("main.scene");
+        sceneModel.setLocalScale(2f);
+        sceneModel.setLocalTranslation(0, -3, 0);
+
+        // We set up collision detection for the scene by creating a
+        // compound collision shape and a static RigidBodyControl with mass zero.
+        CollisionShape sceneShape
+                = CollisionShapeFactory.createMeshShape((Node) sceneModel);
+        landscape = new RigidBodyControl(sceneShape, 0);
+        sceneModel.addControl(landscape);
+
+        // We set up collision detection for the player by creating
+        // a capsule collision shape and a CharacterControl.
+        // The CharacterControl offers extra settings for
+        // size, stepheight, jumping, falling, and gravity.
+        // We also put the player in its starting position.
+        CapsuleCollisionShape capsuleShape = new CapsuleCollisionShape(1.5f, 6f, 1);
+        player = new CharacterControl(capsuleShape, 0.05f);
+        player.setJumpSpeed(20);
+        player.setFallSpeed(30);
+//    player.setGravity(30);
+        player.setPhysicsLocation(new Vector3f(0, 10, 0));
+
+//////        playerNode = new Node("Player node");
+//////        rootNode.attachChild(playerNode);
+//////        playerNode.addControl(player);
+        // We attach the scene and the player to the rootnode and the physics space,
+        // to make them appear in the game world.
+        rootNode.attachChild(sceneModel);
+        bulletAppState.getPhysicsSpace().add(landscape);
+        bulletAppState.getPhysicsSpace().add(player);
+
+        createSimpleMap();
+        addWeapon();
+
+        initSky();
         flyCam.setMoveSpeed(0);
+
+        //analogInitKeys();
+        initKeys();
+        initLights();
+        initCrossHair();
+        //initDebugText();
+        generateEnemies();
+    }
+
+    @Override
+    public void simpleUpdate(float tpf) {
+//        Vector3f moveVectorSum = Vector3f.ZERO.clone();
+//        if (jumping) {
+//            currentJumpAcc = currentJumpAcc.subtract(0, 0.2f, 0);
+//            moveVectorSum.addLocal(currentJumpAcc);
+//            if (cam.getLocation().add(moveVectorSum).y <= 1) {
+//                moveVectorSum = Vector3f.ZERO;
+//                moveVectorSum.subtract(cam.getLocation().setX(0).setZ(0).add(new Vector3f(0, 2, 0)));
+//                jumping = false;
+//            }
+//        }
+//        cam.setLocation(cam.getLocation().add(moveVectorSum));
+
+        playerMovement();
+
+        --bulletTimeout;
+
+        for (PauschalAngreifendesBullet b : bullets) {
+            b.update();
+        }
+        for (Enemy e : enemies) {
+            e.update();
+        }
         
-        //SKY
+        //changeText(bulletTimeout <= 0 ? "READY" : "NOT READY");
+
+    }
+
+    boolean jumping = false;
+    Vector3f jumpAcc = new Vector3f(0, 2, 0);
+    Vector3f currentJumpAcc = new Vector3f(0, 2, 0);
+
+    public void playerMovement() {
+        walkDirection.set(0, 0, 0);
+        Vector3f camDir = cam.getDirection();
+        camDir.setY(0).normalizeLocal();
+        Vector3f camLeft = cam.getLeft();
+        camLeft.setY(0).normalizeLocal();
+        if (inputEvents.contains("Up")) {
+            walkDirection.addLocal(camDir);
+        }
+        if (inputEvents.contains("Down")) {
+            walkDirection.addLocal(camDir.negate());
+        }
+        if (inputEvents.contains("Left")) {
+            walkDirection.addLocal(camLeft);
+        }
+        if (inputEvents.contains("Right")) {
+            walkDirection.addLocal(camLeft.negate());
+        }
+        if (inputEvents.contains("Jump")) {
+            player.jump(new Vector3f(0, 5, 0));
+        }
+        if (inputEvents.contains("Shoot")) {
+            shoot();
+        }
+        player.setWalkDirection(walkDirection.normalize().mult(0.6f));
+        cam.setLocation(player.getPhysicsLocation());
+    }
+
+    public void shoot() {
+        if (bulletTimeout <= 0) {
+//            PauschalAngreifendesBullet bullet
+//                    = new PauschalAngreifendesBullet(assetManager, bulletAppState, player.getPhysicsLocation(), cam.getDirection());
+//            bullets.add(bullet);
+//            rootNode.attachChild(bullet.getObject());
+
+            Ray ray = new Ray(cam.getLocation(), cam.getDirection());
+            CollisionResults results = new CollisionResults();
+            for (Enemy e : enemies) {
+                e.getObject().collideWith(ray, results);
+                try {
+                    System.out.println(results.getClosestCollision().getGeometry().getParent().getName() + "---" + e.getObject().getName());
+                } catch (NullPointerException ex) {
+
+                }
+
+                if (results.getClosestCollision() != null
+                        && results.getClosestCollision().getGeometry().getParent().getName().equals(e.getObject().getName())) {
+                    e.getObject().removeFromParent();
+                    break;
+                }
+            }
+//            rootNode.collideWith(ray, results);
+//            results.forEach(new Consumer<CollisionResult>() {
+//                @Override
+//                public void accept(CollisionResult target) {
+//                    for (Enemy e : enemies) {
+//                        if (e.getObject().getName().equals(target.getGeometry().getName())) {
+//                            System.out.println("SE ENEMY WAS HIT!");
+//                        }
+//                        System.out.println(target.getGeometry().getName() + " <> " + e.getObject().getName());
+//                    }
+//                }
+//            });
+
+            bulletTimeout = 30;
+            System.out.println(player.getPhysicsLocation());
+        }
+    }
+
+    @Override
+    public void simpleRender(RenderManager rm) {
+        //TODO: add render code
+    }
+
+    @Override
+    public void onAction(String name, boolean isPressed, float tpf) {
+        System.out.println(name + ";" + isPressed + ";" + tpf);
+        if (isPressed) {
+            inputEvents.add(name);
+        } else {
+            inputEvents.remove(name);
+        }
+    }
+
+    public void initKeys() {
+        inputManager.addMapping("Left", new KeyTrigger(KeyInput.KEY_A));
+        inputManager.addMapping("Right", new KeyTrigger(KeyInput.KEY_D));
+        inputManager.addMapping("Up", new KeyTrigger(KeyInput.KEY_W));
+        inputManager.addMapping("Down", new KeyTrigger(KeyInput.KEY_S));
+        inputManager.addMapping("Jump", new KeyTrigger(KeyInput.KEY_SPACE));
+        inputManager.addMapping("Shoot", new MouseButtonTrigger(MouseInput.BUTTON_LEFT));
+        inputManager.addListener(this, "Left");
+        inputManager.addListener(this, "Right");
+        inputManager.addListener(this, "Up");
+        inputManager.addListener(this, "Down");
+        inputManager.addListener(this, "Jump");
+        inputManager.addListener(this, "Shoot");
+    }
+
+    public void initSky() {
         Texture skyTexture = assetManager.loadTexture("Textures/sky.png");
         Spatial sky = SkyFactory.createSky(assetManager, skyTexture, skyTexture, skyTexture, skyTexture, skyTexture, skyTexture);
         rootNode.attachChild(sky);
+    }
 
+    private void initLights() {
+        DirectionalLight sun = new DirectionalLight();
+        sun.setDirection(new Vector3f(2.8f, -2.8f, -2.8f).normalizeLocal());
+        sun.setColor(ColorRGBA.White);
+        rootNode.addLight(sun);
+    }
+
+    private void initCrossHair() {
+        setDisplayStatView(false);
+        guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
+        BitmapText ch = new BitmapText(guiFont, false);
+        ch.setSize(guiFont.getCharSet().getRenderedSize() * 2);
+        ch.setText("+"); // crosshairs
+        ch.setLocalTranslation( // center
+                settings.getWidth() / 2 - ch.getLineWidth() / 2, settings.getHeight() / 2 + ch.getLineHeight() / 2, 0);
+        guiNode.attachChild(ch);
+    }
+
+    private void generateEnemies() {
+        Random r = new Random();
+        for (int i = 0; i < 10; ++i) {
+            float dist = r.nextFloat() * 100 - 50;
+            float dirX = r.nextFloat();
+            float dirZ = r.nextFloat();
+            Enemy enemy = new Enemy(assetManager, new Vector3f(10, -3, dist), new Vector3f(dirX, 0, dirZ));
+            rootNode.attachChild(enemy.getObject());
+            enemy.getObject().setName("ENEMY_" + i);
+            enemies.add(enemy);
+        }
+    }
+    
+    private BitmapText helloText;
+    private void initDebugText() {
+                /** Write text on the screen (HUD) */
+        guiNode.detachAllChildren();
+        guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
+        helloText = new BitmapText(guiFont, false);
+        helloText.setSize(guiFont.getCharSet().getRenderedSize());
+        helloText.setText("Hello World");
+        helloText.setLocalTranslation(300, helloText.getLineHeight(), 0);
+        guiNode.attachChild(helloText);
+ 
+    }
+    
+    private void changeText(String text) {
+        helloText.setText("BulletTimeout: " + text);
+    }
+
+//        .__.__  .__    ___.                           
+//__  _  _|__|  | |  |   \_ |__   ____                  
+//\ \/ \/ /  |  | |  |    | __ \_/ __ \                 
+// \     /|  |  |_|  |__  | \_\ \  ___/                 
+//  \/\_/ |__|____/____/  |___  /\___  >                
+//                            \/     \/                 
+//                                              .___    
+//_______   ____   _____   _______  __ ____   __| _/ /\ 
+//\_  __ \_/ __ \ /     \ /  _ \  \/ // __ \ / __ |  \/ 
+// |  | \/\  ___/|  Y Y  (  <_> )   /\  ___// /_/ |  /\ 
+// |__|    \___  >__|_|  /\____/ \_/  \___  >____ |  \/ 
+//             \/      \/                 \/     \/ 
+    public void analogInitKeys() {
         inputManager.addMapping("Up", new KeyTrigger(KeyInput.KEY_W));
         inputManager.addMapping("Left", new KeyTrigger(KeyInput.KEY_A));
         inputManager.addMapping("Down", new KeyTrigger(KeyInput.KEY_S));
@@ -91,9 +354,40 @@ public class GSPA extends SimpleApplication {
         inputManager.addListener(new AnalogListener() {
             @Override
             public void onAnalog(String name, float value, float tpf) {
-                shoot(name, value, tpf);
+                shoot();
             }
         }, "Shoot");
+    }
+
+    public void addWeapon() {
+        //WAFFE
+        Spatial waffe = assetManager.loadModel("Models/Beretta_93R/Beretta_93R.j3o");
+        waffe.move(new Vector3f(2, 0, 5));
+        rootNode.attachChild(waffe);
+        PointLight lamp_light = new PointLight();
+        lamp_light.setColor(ColorRGBA.White);
+        lamp_light.setRadius(100f);
+        lamp_light.setPosition(new Vector3f(1.5f, 0, 3));
+        rootNode.addLight(lamp_light);
+
+    }
+
+    public void createSimpleMap() {
+        TerrainQuad terrain = new TerrainQuad();
+        Material mat_terrain;
+        Box b = new Box(1, 2, 1);
+
+        //ADD COLLISION
+        Geometry geom = new Geometry("Box", b);
+        CollisionShape geomShape
+                = CollisionShapeFactory.createMeshShape(geom.center());
+        RigidBodyControl geomRb = new RigidBodyControl(geomShape, 0);
+        bulletAppState.getPhysicsSpace().add(geomRb);
+
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", ColorRGBA.Blue);
+        geom.setMaterial(mat);
+        rootNode.attachChild(geom);
 
         /*TERRAIN*/
         /**
@@ -138,68 +432,7 @@ public class GSPA extends SimpleApplication {
          */
         TerrainLodControl control = new TerrainLodControl(terrain, getCamera());
         terrain.addControl(control);
-
-        // STIFT
-        Random r = new Random();
-        for (int i = 0; i < 100; i++) {
-            Spatial stift;
-//            stift = assetManager.loadModel("Models/belistift/belistift.j3o");
-            stift = assetManager.loadModel("Models/cup_pencil/cup_pencil.j3o");
-            stift.move(new Vector3f(2 + 0.2f * i, -0.5f, 2 + 0.2f * i));
-            stift.setLocalScale(0.1f);
-            stifte.add(stift);
-            rootNode.attachChild(stift);
-        }
-
-//        stift.setMaterial(mat);
-        /**
-         * A white, directional light source
-         */
-        DirectionalLight sun = new DirectionalLight();
-        sun.setDirection((new Vector3f(-0.5f, -0.5f, -0.5f)).normalizeLocal());
-        sun.setColor(ColorRGBA.White);
-        rootNode.addLight(sun);
-
-        rootNode.attachChild(geom);
     }
-    
-    float waveVal = 0;
-
-    @Override
-    public void simpleUpdate(float tpf) {
-        Vector3f moveVectorSum = Vector3f.ZERO.clone();
-        if (jumping) {
-            currentJumpAcc = currentJumpAcc.subtract(0, 0.2f, 0);
-            moveVectorSum.addLocal(currentJumpAcc);
-            if (cam.getLocation().add(moveVectorSum).y <= 1) {
-                moveVectorSum = Vector3f.ZERO;
-                moveVectorSum.subtract(cam.getLocation().setX(0).setZ(0).add(new Vector3f(0, 2, 0)));
-                jumping = false;
-            }
-        }
-
-        --bulletTimeout;
-
-        for (PauschalAngreifendesBullet b : bullets) {
-            b.positionUpdate();
-        }
-
-        cam.setLocation(cam.getLocation().add(moveVectorSum));
-
-        float oneDegree = FastMath.DEG_TO_RAD * 1;
-        waveVal += 0.1f;
-        for(Spatial stift: stifte) {
-            stift.rotate(oneDegree, 0, oneDegree / 2);
-            stift.setLocalTranslation(stift.getLocalTranslation().x, 
-                    (float)-Math.sin(waveVal + stift.getLocalTranslation().x)/10, 
-                    stift.getLocalTranslation().z);
-        }
-        
-    }
-
-    boolean jumping = false;
-    Vector3f jumpAcc = new Vector3f(0, 2, 0);
-    Vector3f currentJumpAcc = new Vector3f(0, 2, 0);
 
     public void keyPress(String name, float value, float tpf) {
         float posy = posy = (float) Math.sin(sinusWaveMovePos++ / 3) / 20;
@@ -244,20 +477,4 @@ public class GSPA extends SimpleApplication {
         cam.setLocation(cam.getLocation().add(moveVectorSum));
     }
 
-    public void shoot(String name, float value, float tpf) {
-
-        if (bulletTimeout <= 0) {
-            PauschalAngreifendesBullet bullet
-                    = new PauschalAngreifendesBullet(assetManager, cam.getLocation(), cam.getDirection());
-            bullets.add(bullet);
-            rootNode.attachChild(bullet);
-            bulletTimeout = 30;
-        }
-
-    }
-
-    @Override
-    public void simpleRender(RenderManager rm) {
-        //TODO: add render code
-    }
 }
