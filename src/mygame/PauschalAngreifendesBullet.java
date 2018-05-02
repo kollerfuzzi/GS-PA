@@ -43,7 +43,7 @@ public class PauschalAngreifendesBullet extends GameObject {
     }
 
     @Override
-    public void update() {
+    public void update(float tpf) {
         this.moveDir.subtractLocal(new Vector3f(0, 0.001f, 0));
         object.move(moveDir.normalize().mult(0.3f));
         object.rotate(0.1f, 0.1f, 0.1f);

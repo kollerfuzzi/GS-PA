@@ -18,5 +18,5 @@ public abstract class GameObject {
         return object;
     }
     
-    public abstract void update();
+    public abstract void update(float tpf);
 }
