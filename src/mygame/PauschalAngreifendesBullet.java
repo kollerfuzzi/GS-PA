@@ -18,7 +18,7 @@ import com.jme3.scene.Mesh;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Sphere;
-import interfaces.GameObject;
+import gameobjects.GameObject;
 
 /**
  *

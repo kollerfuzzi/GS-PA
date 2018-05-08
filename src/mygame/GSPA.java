@@ -1,54 +1,42 @@
 package mygame;
 
-import beans.Player;
-import com.jme3.animation.AnimControl;
+import gameobjects.Enemy;
+import gameobjects.Player;
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.plugins.ZipLocator;
-import com.jme3.audio.AudioData.DataType;
-import com.jme3.audio.AudioNode;
 import com.jme3.bullet.BulletAppState;
-import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
 import com.jme3.bullet.collision.shapes.CollisionShape;
-import com.jme3.bullet.control.CharacterControl;
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.bullet.util.CollisionShapeFactory;
-import com.jme3.collision.CollisionResult;
-import com.jme3.collision.CollisionResults;
+import com.jme3.font.BitmapFont;
 import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
 import com.jme3.input.MouseInput;
 import com.jme3.input.controls.ActionListener;
-import com.jme3.input.controls.AnalogListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.MouseButtonTrigger;
 import com.jme3.light.DirectionalLight;
-import com.jme3.light.PointLight;
-import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Matrix3f;
-import com.jme3.math.Ray;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
-import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
-import com.jme3.scene.control.Control;
-import com.jme3.scene.shape.Box;
 import com.jme3.system.AppSettings;
-import com.jme3.terrain.geomipmap.TerrainLodControl;
-import com.jme3.terrain.geomipmap.TerrainQuad;
-import com.jme3.terrain.heightmap.AbstractHeightMap;
-import com.jme3.terrain.heightmap.ImageBasedHeightMap;
 import com.jme3.texture.Texture;
 import com.jme3.util.SkyFactory;
-import interfaces.GameObject;
+import com.simsilica.lemur.Button;
+import com.simsilica.lemur.Command;
+import com.simsilica.lemur.Container;
+import com.simsilica.lemur.GuiGlobals;
+import com.simsilica.lemur.Label;
+import com.simsilica.lemur.TextField;
+import com.simsilica.lemur.style.BaseStyles;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * This is the Main Class of your Game. You should only do initialization here.
@@ -56,7 +44,7 @@ import java.util.function.Consumer;
  *
  * @author normenhansen
  */
-public class GSPA extends SimpleApplication implements ActionListener {
+public class GSPA extends SimpleApplication implements ActionListener, Receiver {
 
     private final float movementSpeed = 10;
     private float sinusWaveMovePos = 0;
@@ -102,33 +90,21 @@ public class GSPA extends SimpleApplication implements ActionListener {
         sceneModel.setLocalScale(2f);
         sceneModel.setLocalTranslation(0, -3, 0);
 
-        // We set up collision detection for the scene by creating a
-//        // compound collision shape and a static RigidBodyControl with mass zero.
-//        CollisionShape sceneShape
-//                = CollisionShapeFactory.createMeshShape((Node) sceneModel);
-//        landscape = new RigidBodyControl(sceneShape, 0);
-//        sceneModel.addControl(landscape);
-//        rootNode.attachChild(sceneModel);
-//        bulletAppState.getPhysicsSpace().add(landscape);
-        //Creating new Player
         player = new Player(bulletAppState, cam);
 
         initSky();
         flyCam.setMoveSpeed(0);
+        flyCam.setRotationSpeed(0);
 
-        initKeys();
-        initLights();
-        initCrossHair();
-        initMap();
-        generateEnemies();
+        initMenu();
     }
 
     @Override
     public void simpleUpdate(float tpf) {
         player.playerControl(inputEvents, cam, tpf);
-        if(inputEvents.contains("Shoot") && bulletTimeout < 0) {
+        if (inputEvents.contains("Shoot") && bulletTimeout < 0) {
             Enemy hit = player.shoot(tpf, enemies);
-            if(hit != null) {
+            if (hit != null) {
                 hit.die();
             }
             bulletTimeout = 30;
@@ -213,11 +189,10 @@ public class GSPA extends SimpleApplication implements ActionListener {
             Enemy enemy = new Enemy(assetManager, new Vector3f(10, -3, dist), new Vector3f(dirX, 0, dirZ));
             rootNode.attachChild(enemy.getObject());
             enemy.getObject().setName("ENEMY_" + i);
-            System.out.println("=====");
             enemies.add(enemy);
         }
     }
-    
+
     public void initMap() {
         // We load the scene from the zip file and adjust its size.
         assetManager.registerLocator("town.zip", ZipLocator.class);
@@ -230,7 +205,7 @@ public class GSPA extends SimpleApplication implements ActionListener {
         CollisionShape sceneShape
                 = CollisionShapeFactory.createMeshShape((Node) sceneModel);
         landscape = new RigidBodyControl(sceneShape, 0);
-        sceneModel.addControl(landscape);        
+        sceneModel.addControl(landscape);
         bulletAppState.getPhysicsSpace().add(landscape);
         rootNode.attachChild(sceneModel);
     }
@@ -253,5 +228,80 @@ public class GSPA extends SimpleApplication implements ActionListener {
 
     private void changeText(String text) {
         helloText.setText("BulletTimeout: " + text);
+    }
+
+    public void initMenu() {
+        BitmapFont comicSans = assetManager.loadFont("Interface/Fonts/Ubuntu.fnt");
+
+        // Initialize the globals access so that the defualt
+        // components can find what they need.
+        GuiGlobals.initialize(this);
+
+        // Load the 'glass' style
+        BaseStyles.loadGlassStyle();
+
+        // Set 'glass' as the default style when not specified
+        GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
+
+        // Create a simple container for our elements
+        final Container myWindow = new Container();
+        guiNode.attachChild(myWindow);
+
+        // Put it somewhere that we will see it
+        // Note: Lemur GUI elements grow down from the upper left corner.
+        myWindow.setLocalTranslation(200, settings.getHeight() - 200, 0);
+
+        // Add some elements
+        Label title = new Label("GegenSchlägst: pauschal angreifend");
+        title.setFont(comicSans);
+        title.setFontSize(30f);
+        myWindow.addChild(title);
+        Label subtitle = new Label("Hauptmenü");
+        subtitle.setFont(comicSans);
+        subtitle.setFontSize(55f);
+        myWindow.addChild(subtitle);
+
+        Label username = new Label("Username:");
+        username.setFont(comicSans);
+        username.setFontSize(20f);
+        myWindow.addChild(username);
+
+        TextField usernameTf = new TextField("");
+        usernameTf.setFont(comicSans);
+        usernameTf.setFontSize(28f);
+        myWindow.addChild(usernameTf);
+
+        Label ipAddr = new Label("Server IP:");
+        ipAddr.setFont(comicSans);
+        ipAddr.setFontSize(20f);
+        myWindow.addChild(ipAddr);
+
+        TextField ipAddrTf = new TextField("");
+        ipAddrTf.setFont(comicSans);
+        ipAddrTf.setFontSize(28f);
+        myWindow.addChild(ipAddrTf);
+
+        Button startGame = myWindow.addChild(new Button("Start Game"));
+        startGame.setFont(comicSans);
+        startGame.setFontSize(25f);
+        startGame.addClickCommands(new Command<Button>() {
+            @Override
+            public void execute(Button source) {
+                myWindow.removeFromParent();
+                inputManager.setCursorVisible(false);
+                initKeys();
+                initLights();
+                initCrossHair();
+                initMap();
+                generateEnemies();
+                player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
+                flyCam.setRotationSpeed(1);
+            }
+        });
+    }
+
+    @Override
+    public void receive(Object obj) {
+
     }
 }
