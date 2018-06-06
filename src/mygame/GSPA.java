@@ -446,6 +446,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 if (playerSpatials.containsKey(pl)) {
                     Spatial gameObj = playerSpatials.get(pl);
                     gameObj.lookAt(data.getFacingDir().negate(), Vector3f.UNIT_Y);
+                    gameObj.setLocalTranslation(data.getPosition());
                 } else {
                     Spatial gameObj = assetManager.loadModel("Models/cent/cent.j3o");
                     gameObj.setLocalScale(0.3f);
