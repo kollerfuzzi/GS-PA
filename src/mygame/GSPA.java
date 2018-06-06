@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -445,7 +446,13 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 player.setHealth(player.getHealth() - dmg.getDamageValue());
                 showBlood = 6;
             }
-            audio.playGunSound();
+            this.enqueue(new Callable<Integer>() {
+                public Integer call() throws Exception {
+                    audio.playGunSound();
+                    return 0;
+                }
+
+            });
         }
 
     }
