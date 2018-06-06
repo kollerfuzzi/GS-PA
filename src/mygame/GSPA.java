@@ -89,6 +89,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private Picture hudBlood;
     private BitmapText hudHealth;
     private BitmapText hudArmor;
+    private BitmapText hudStatus;
 
     public static void main(String[] args) {
         GSPA app = new GSPA();
@@ -101,9 +102,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     @Override
     public void simpleInitApp() {
-        /**
-         * Set up Physics
-         */
+        setDisplayStatView(false);
+        setDisplayFps(false);
+
         bulletAppState = new BulletAppState();
         stateManager.attach(bulletAppState);
         //bulletAppState.getPhysicsSpace().enableDebug(assetManager);
@@ -119,11 +120,17 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
         ubuntu = assetManager.loadFont("Interface/Fonts/Ubuntu.fnt");
 
-        initSky();
+        initMenu();
+        initMap();
         flyCam.setMoveSpeed(0);
         flyCam.setRotationSpeed(0);
+        audio.playHorseTechno();
 
-        initMenu();
+        hudStatus = new BitmapText(ubuntu, false);
+        hudStatus.setColor(new ColorRGBA(0.5f, 0f, 0f, 1));                             // font color
+        hudStatus.setSize(30);
+        guiNode.attachChild(hudStatus);
+
     }
 
     @Override
@@ -230,8 +237,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     }
 
     private void initCrossHair() {
-        setDisplayStatView(false);
-        setDisplayFps(false);
         guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
         BitmapText ch = new BitmapText(guiFont, false);
         ch.setSize(guiFont.getCharSet().getRenderedSize() * 2);
@@ -262,7 +267,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         //sceneModel = assetManager.loadModel("main.scene");
         sceneModel.setLocalScale(0.2f);
         sceneModel.setLocalTranslation(0, -100, 0);
+    }
 
+    public void showMap() {
         // We set up collision detection for the scene by creating a
         // compound collision shape and a static RigidBodyControl with mass zero.
         CollisionShape sceneShape
@@ -338,6 +345,18 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         startGame.addClickCommands(new Command<Button>() {
             @Override
             public void execute(Button source) {
+                String usr = usernameTf.getText();
+                String ip = ipAddrTf.getText();
+                player.setPlayerId(usr);
+                client = new Client(gegenschlaegst);
+                try {
+                    client.connect(ip);
+                    setStatusText("Connceted to " + ip);
+                } catch (IOException ex) {
+                    Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
+                    setStatusText("Connection Refused");
+                    return;
+                }
                 menuWindow.removeChild(lbConnect);
                 menuWindow.removeChild(username);
                 menuWindow.removeChild(usernameTf);
@@ -345,17 +364,8 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 menuWindow.removeChild(ipAddrTf);
                 menuWindow.removeChild(startGame);
 
-                String usr = usernameTf.getText();
-                String ip = ipAddrTf.getText();
-                player.setPlayerId(usr);
-                client = new Client(gegenschlaegst);
-                try {
-                    client.connect(ip);
-                } catch (IOException ex) {
-                    Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
-                    return;
-                }
                 client.send("TEAMS");
+
             }
         });
     }
@@ -386,11 +396,11 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     }
                     menuWindow.addChild(new Label("Loading..."));
                     //Start game
-
+                    audio.stopHorseTechno();
                     initKeys();
                     initLights();
                     initCrossHair();
-                    initMap();
+                    showMap();
                     initWeapon();
                     initHUD();
                     player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
@@ -426,7 +436,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     players.put(pd.getPlayerID(), pd);
                 }
             }
-            System.out.println("PLAYERDATA RECEIVED!! " + obj);
         }
         if (obj instanceof Damage) {
             Damage dmg = (Damage) obj;
@@ -445,8 +454,11 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
                 if (playerSpatials.containsKey(pl)) {
                     Spatial gameObj = playerSpatials.get(pl);
-                    gameObj.lookAt(data.getFacingDir().negate(), Vector3f.UNIT_Y);
-                    gameObj.setLocalTranslation(data.getPosition());
+                    System.out.println(data.getFacingDir().negate());
+                    Vector3f realObjectPos = data.getPosition().subtract(0, 5, 0);
+                    gameObj.setLocalTranslation(realObjectPos);
+                    gameObj.lookAt(realObjectPos.add(data.getFacingDir()), Vector3f.UNIT_Y);
+
                 } else {
                     Spatial gameObj = assetManager.loadModel("Models/cent/cent.j3o");
                     gameObj.setLocalScale(0.3f);
@@ -515,10 +527,17 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     }
 
+    public void setStatusText(String statusTxt) {
+        hudStatus.setText(statusTxt);             // the text
+        hudStatus.setLocalTranslation(settings.getWidth() - hudStatus.getLineWidth() - 50, settings.getHeight() - 50, 0); // position
+    }
+
     @Override
     public void destroy() {
         super.destroy();
-        client.disconnect();
+        if (client != null) {
+            client.disconnect();
+        }
         System.exit(0);
     }
 
