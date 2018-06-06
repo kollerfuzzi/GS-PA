@@ -1,6 +1,7 @@
 package mygame;
 
 import beans.Damage;
+import beans.Kill;
 import beans.PlayerData;
 import beans.PlayerStatus;
 import gameobjects.Enemy;
@@ -83,8 +84,8 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     private boolean gameRunning = false;
 
-    public Map<String, PlayerData> players = new HashMap<>();
-    public Map<String, Spatial> playerSpatials = new HashMap<>();
+    public final Map<String, PlayerData> players = new HashMap<>();
+    public final Map<String, Spatial> playerSpatials = new HashMap<>();
 
     //HUD
     private Picture hudBlood;
@@ -449,6 +450,24 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             this.enqueue(new Callable<Integer>() {
                 public Integer call() throws Exception {
                     audio.playGunSound();
+                    return 0;
+                }
+
+            });
+        }
+
+        if (obj instanceof PlayerStatus) {
+            final String player = ((PlayerStatus) obj).getPlayerID();
+            this.enqueue(new Callable<Integer>() {
+                public Integer call() throws Exception {
+                    Spatial killedOne = playerSpatials.get(player);
+                    playerSpatials.put("", weapon);
+                    Spatial rip = assetManager.loadModel("Models/Tombstone_RIP_/Tombstone_RIP_obj.j3o");
+                    rip.setLocalScale(1f);
+                    rip.setLocalTranslation(killedOne.getLocalTranslation());
+                    rootNode.attachChild(rip);
+                    playerSpatials.put(player, rip);
+                    killedOne.removeFromParent();
                     return 0;
                 }
 
