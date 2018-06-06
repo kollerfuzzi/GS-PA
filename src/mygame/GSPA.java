@@ -2,6 +2,7 @@ package mygame;
 
 import beans.Damage;
 import beans.PlayerData;
+import beans.PlayerStatus;
 import gameobjects.Enemy;
 import gameobjects.Player;
 import com.jme3.app.SimpleApplication;
@@ -84,6 +85,11 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     public Map<String, PlayerData> players = new HashMap<>();
     public Map<String, Spatial> playerSpatials = new HashMap<>();
 
+    //HUD
+    private Picture hudBlood;
+    private BitmapText hudHealth;
+    private BitmapText hudArmor;
+
     public static void main(String[] args) {
         GSPA app = new GSPA();
         AppSettings settings = new AppSettings(false);
@@ -126,11 +132,11 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             teamMenu(teams);
             teams.clear();
         }
-        
+
         if (!gameRunning) {
             return;
         }
-        
+
         player.playerControl(inputEvents, cam, tpf);
 
         CharacterControl cc = player.getPlayer();
@@ -147,7 +153,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             }
             bulletTimeout = 30;
             showBlood = 6;
-            health.setText("you are dead");
+            hudHealth.setText("you are dead");
         }
 
         bulletTimeout -= 60 * tpf;
@@ -164,14 +170,17 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
         if (showBlood == 0) {
             showblood(false);
-        } else if(showBlood == 6) {
+        } else if (showBlood == 6) {
             showblood(true);
         }
         --showBlood;
-        
-        if(player.getHealth() < 0) {
-            //client.send();
+
+        if (player.getHealth() <= 0) {
+            player.setHealth(0);
+            client.send(new PlayerStatus(player.getPlayerId(), PlayerStatus.Type.DEAD));
+            System.exit(0);
         }
+        hudHealth.setText("Health: " + player.getHealth() + "/");
     }
 
     @Override
@@ -421,13 +430,13 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             }
             System.out.println("PLAYERDATA RECEIVED!! " + obj);
         }
-        if(obj instanceof Damage) {
-            Damage dmg = (Damage)obj;
-            if(dmg.getPlayer().equals(player.getPlayerId())){
+        if (obj instanceof Damage) {
+            Damage dmg = (Damage) obj;
+            if (dmg.getPlayer().equals(player.getPlayerId())) {
                 player.setHealth(player.getHealth() - dmg.getDamageValue());
             }
         }
-        
+
     }
 
     public void updatePlayerObjects() {
@@ -450,25 +459,21 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
     }
 
-    Picture blood;
-    BitmapText health;
-    BitmapText armor;
-
     public void showblood(boolean show) {
         if (show) {
-            blood.setImage(assetManager, "Textures/blood.png", true);
+            hudBlood.setImage(assetManager, "Textures/blood.png", true);
         } else {
-            blood.setImage(assetManager, "Textures/noblood.png", true);
+            hudBlood.setImage(assetManager, "Textures/noblood.png", true);
         }
     }
 
     public void initHUD() {
-        blood = new Picture("HUD Picture");
-        blood.setImage(assetManager, "Textures/noblood.png", true);
-        blood.setWidth(settings.getWidth());
-        blood.setHeight(settings.getHeight());
-        blood.setPosition(0, 0);
-        guiNode.attachChild(blood);
+        hudBlood = new Picture("HUD Picture");
+        hudBlood.setImage(assetManager, "Textures/noblood.png", true);
+        hudBlood.setWidth(settings.getWidth());
+        hudBlood.setHeight(settings.getHeight());
+        hudBlood.setPosition(0, 0);
+        guiNode.attachChild(hudBlood);
 
         Picture pic = new Picture("HUD Picture");
         pic.setImage(assetManager, "Textures/hud.png", true);
@@ -493,22 +498,21 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         team.setLocalTranslation(40 + name.getLineWidth(), name.getLineHeight() + 80, 0); // position
         guiNode.attachChild(team);
 
-        health = new BitmapText(ubuntu, false);
-        health.setSize(guiFont.getCharSet().getRenderedSize());      // font size
-        health.setColor(new ColorRGBA(1, 0.8f, 0.8f, 1));                             // font color
-        health.setText("Health: 10/10");             // the text
-        health.setSize(30);
-        health.setLocalTranslation(20, health.getLineHeight() + 50, 0); // position
-        guiNode.attachChild(health);
+        hudHealth = new BitmapText(ubuntu, false);
+        hudHealth.setSize(guiFont.getCharSet().getRenderedSize());      // font size
+        hudHealth.setColor(new ColorRGBA(1, 0.8f, 0.8f, 1));                             // font color
+        hudHealth.setText("Health: 10/10");             // the text
+        hudHealth.setSize(30);
+        hudHealth.setLocalTranslation(20, hudHealth.getLineHeight() + 50, 0); // position
+        guiNode.attachChild(hudHealth);
 
-         
-        armor = new BitmapText(ubuntu, false);
-        armor.setSize(guiFont.getCharSet().getRenderedSize());      // font size
-        armor.setColor(new ColorRGBA(0.8f, 0.8f, 1, 1));                             // font color
-        armor.setText("Teflon: 0/10");             // the text
-        armor.setSize(30);
-        armor.setLocalTranslation(20, armor.getLineHeight() + 20, 0); // position
-        guiNode.attachChild(armor);
+        hudArmor = new BitmapText(ubuntu, false);
+        hudArmor.setSize(guiFont.getCharSet().getRenderedSize());      // font size
+        hudArmor.setColor(new ColorRGBA(0.8f, 0.8f, 1, 1));                             // font color
+        hudArmor.setText("Teflon: 0/10");             // the text
+        hudArmor.setSize(30);
+        hudArmor.setLocalTranslation(20, hudArmor.getLineHeight() + 20, 0); // position
+        guiNode.attachChild(hudArmor);
 
     }
 
