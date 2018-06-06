@@ -152,8 +152,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 client.send(new Damage(hit, 2));
             }
             bulletTimeout = 30;
-            showBlood = 6;
-            hudHealth.setText("you are dead");
         }
 
         bulletTimeout -= 60 * tpf;
@@ -434,6 +432,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             Damage dmg = (Damage) obj;
             if (dmg.getPlayer().equals(player.getPlayerId())) {
                 player.setHealth(player.getHealth() - dmg.getDamageValue());
+                showBlood = 6;
             }
         }
 
