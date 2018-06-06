@@ -102,6 +102,7 @@ public class Player {
     }
     
     public PlayerData getPlayerData() {
+        System.out.println(cam.getDirection());
         PlayerData data = new PlayerData(playerId, team, player.getPhysicsLocation(), cam.getDirection(), walkDirection);
         return data;
     }

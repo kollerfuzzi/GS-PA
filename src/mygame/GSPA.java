@@ -178,7 +178,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             client.send(new PlayerStatus(player.getPlayerId(), PlayerStatus.Type.DEAD));
             System.exit(0);
         }
-        hudHealth.setText("Health: " + player.getHealth() + "/");
+        hudHealth.setText("Health: " + player.getHealth() + "/10");
     }
 
     @Override
@@ -445,8 +445,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
                 if (playerSpatials.containsKey(pl)) {
                     Spatial gameObj = playerSpatials.get(pl);
-                    gameObj.setLocalTranslation(data.getPosition());
-                    gameObj.setLocalRotation(new Quaternion(0, data.getFacingDir().angleBetween(Vector3f.UNIT_Z), 0, 1));
+                    gameObj.lookAt(data.getFacingDir().negate(), Vector3f.UNIT_Y);
                 } else {
                     Spatial gameObj = assetManager.loadModel("Models/cent/cent.j3o");
                     gameObj.setLocalScale(0.3f);
