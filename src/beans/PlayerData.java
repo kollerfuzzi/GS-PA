@@ -6,18 +6,23 @@
 package beans;
 
 import com.jme3.math.Vector3f;
+import java.io.Serializable;
 
 /**
  *
  * @author koller
  */
-public class PlayerData {
+public class PlayerData implements Serializable {
+
     private String playerID;
+    private String team;
     private Vector3f position;
     private Vector3f facingDir;
     private Vector3f movementDir;
 
-    public PlayerData(Vector3f position, Vector3f facingDir, Vector3f movementDir, String playerID) {
+    public PlayerData(String playerID, String team, Vector3f position, Vector3f facingDir, Vector3f movementDir) {
+        this.playerID = playerID;
+        this.team = team;
         this.position = position;
         this.facingDir = facingDir;
         this.movementDir = movementDir;
@@ -29,6 +34,14 @@ public class PlayerData {
 
     public void setPlayerID(String playerID) {
         this.playerID = playerID;
+    }
+
+    public String getTeam() {
+        return team;
+    }
+
+    public void setTeam(String team) {
+        this.team = team;
     }
 
     public Vector3f getPosition() {
@@ -54,5 +67,5 @@ public class PlayerData {
     public void setMovementDir(Vector3f movementDir) {
         this.movementDir = movementDir;
     }
-    
+
 }

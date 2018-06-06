@@ -1,11 +1,13 @@
 package mygame;
 
+import beans.Damage;
+import beans.PlayerData;
 import gameobjects.Enemy;
 import gameobjects.Player;
 import com.jme3.app.SimpleApplication;
-import com.jme3.asset.plugins.ZipLocator;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.collision.shapes.CollisionShape;
+import com.jme3.bullet.control.CharacterControl;
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.bullet.util.CollisionShapeFactory;
 import com.jme3.font.BitmapFont;
@@ -17,6 +19,7 @@ import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.MouseButtonTrigger;
 import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
@@ -24,6 +27,7 @@ import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.system.AppSettings;
 import com.jme3.texture.Texture;
+import com.jme3.ui.Picture;
 import com.jme3.util.SkyFactory;
 import com.simsilica.lemur.Button;
 import com.simsilica.lemur.Command;
@@ -32,11 +36,16 @@ import com.simsilica.lemur.GuiGlobals;
 import com.simsilica.lemur.Label;
 import com.simsilica.lemur.TextField;
 import com.simsilica.lemur.style.BaseStyles;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * This is the Main Class of your Game. You should only do initialization here.
@@ -55,12 +64,25 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private BulletAppState bulletAppState;
     private RigidBodyControl landscape;
     private Player player;
+    private AudioManager audio;
+    private Spatial weapon;
     private Set<String> inputEvents = new HashSet<String>();
+    private int showBlood = 0;
     //______________________________
-
-    private List<PauschalAngreifendesBullet> bullets = new ArrayList<>();
+    //MENU
+    private BitmapFont ubuntu;
+    private Container menuWindow;
+    private List<String> teams = new ArrayList<>();
 
     private List<Enemy> enemies = new ArrayList<>();
+
+    private Client client;
+    private final GSPA gegenschlaegst = this;
+
+    private boolean gameRunning = false;
+
+    public Map<String, PlayerData> players = new HashMap<>();
+    public Map<String, Spatial> playerSpatials = new HashMap<>();
 
     public static void main(String[] args) {
         GSPA app = new GSPA();
@@ -84,13 +106,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         viewPort.setBackgroundColor(new ColorRGBA(0.7f, 0.8f, 1f, 1f));
         flyCam.setMoveSpeed(100);
 
-        // We load the scene from the zip file and adjust its size.
-        assetManager.registerLocator("town.zip", ZipLocator.class);
-        sceneModel = assetManager.loadModel("main.scene");
-        sceneModel.setLocalScale(2f);
-        sceneModel.setLocalTranslation(0, -3, 0);
+        audio = new AudioManager(assetManager);
+        audio.attachToRoot(rootNode);
 
-        player = new Player(bulletAppState, cam);
+        player = new Player(bulletAppState, cam, audio);
+
+        ubuntu = assetManager.loadFont("Interface/Fonts/Ubuntu.fnt");
 
         initSky();
         flyCam.setMoveSpeed(0);
@@ -101,22 +122,55 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     @Override
     public void simpleUpdate(float tpf) {
+        if (teams.size() != 0 && !gameRunning) {
+            teamMenu(teams);
+            teams.clear();
+        }
+        
+        if (!gameRunning) {
+            return;
+        }
+        
         player.playerControl(inputEvents, cam, tpf);
+
+        CharacterControl cc = player.getPlayer();
+        Vector3f pLoc = cc.getPhysicsLocation();
+        pLoc.addLocal(cam.getDirection().normalize().mult(2.5f));
+        weapon.setLocalTranslation(pLoc.subtract(cam.getLeft().normalize().mult(1.3f)).subtract(0, 0.5f, 0));
+        weapon.setLocalRotation(cam.getRotation());
+        weapon.rotate(0, FastMath.DEG_TO_RAD * 90, 0);
+
         if (inputEvents.contains("Shoot") && bulletTimeout < 0) {
-            Enemy hit = player.shoot(tpf, enemies);
+            String hit = player.shoot(tpf, playerSpatials);
             if (hit != null) {
-                hit.die();
+                client.send(new Damage(hit, 2));
             }
             bulletTimeout = 30;
+            showBlood = 6;
+            health.setText("you are dead");
         }
 
         bulletTimeout -= 60 * tpf;
 
-        for (PauschalAngreifendesBullet b : bullets) {
-            b.update(tpf);
-        }
         for (Enemy e : enemies) {
             e.update(tpf);
+        }
+        if (client != null) {
+            client.send(player.getPlayerData());
+        }
+        synchronized (players) {
+            updatePlayerObjects();
+        }
+
+        if (showBlood == 0) {
+            showblood(false);
+        } else if(showBlood == 6) {
+            showblood(true);
+        }
+        --showBlood;
+        
+        if(player.getHealth() < 0) {
+            //client.send();
         }
     }
 
@@ -127,7 +181,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
-        System.out.println(name + ";" + isPressed + ";" + tpf);
         if (isPressed) {
             inputEvents.add(name);
         } else {
@@ -171,6 +224,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     private void initCrossHair() {
         setDisplayStatView(false);
+        setDisplayFps(false);
         guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
         BitmapText ch = new BitmapText(guiFont, false);
         ch.setSize(guiFont.getCharSet().getRenderedSize() * 2);
@@ -195,10 +249,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     public void initMap() {
         // We load the scene from the zip file and adjust its size.
-        assetManager.registerLocator("town.zip", ZipLocator.class);
-        sceneModel = assetManager.loadModel("main.scene");
-        sceneModel.setLocalScale(2f);
-        sceneModel.setLocalTranslation(0, -3, 0);
+        //assetManager.registerLocator("town.zip", ZipLocator.class);
+        // sceneModel = assetManager.loadModel("Models/Map_Alpha_02/Map_Alpha_0.2.j3o");
+        sceneModel = assetManager.loadModel("Models/scifitown/scifi dowtown scenery.j3o");
+        //sceneModel = assetManager.loadModel("main.scene");
+        sceneModel.setLocalScale(0.2f);
+        sceneModel.setLocalTranslation(0, -100, 0);
 
         // We set up collision detection for the scene by creating a
         // compound collision shape and a static RigidBodyControl with mass zero.
@@ -210,98 +266,257 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         rootNode.attachChild(sceneModel);
     }
 
-    private BitmapText helloText;
-
-    private void initDebugText() {
-        /**
-         * Write text on the screen (HUD)
-         */
-        guiNode.detachAllChildren();
-        guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
-        helloText = new BitmapText(guiFont, false);
-        helloText.setSize(guiFont.getCharSet().getRenderedSize());
-        helloText.setText("Hello World");
-        helloText.setLocalTranslation(300, helloText.getLineHeight(), 0);
-        guiNode.attachChild(helloText);
-
+    public void initWeapon() {
+        weapon = assetManager.loadModel("Models/Beretta/Beretta.j3o");
+        weapon.setLocalScale(1.5f);
+        weapon.setLocalTranslation(new Vector3f(2, 2, 2));
+        rootNode.attachChild(weapon);
     }
+
+    private BitmapText helloText;
 
     private void changeText(String text) {
         helloText.setText("BulletTimeout: " + text);
     }
 
     public void initMenu() {
-        BitmapFont comicSans = assetManager.loadFont("Interface/Fonts/Ubuntu.fnt");
-
-        // Initialize the globals access so that the defualt
-        // components can find what they need.
         GuiGlobals.initialize(this);
-
-        // Load the 'glass' style
         BaseStyles.loadGlassStyle();
-
-        // Set 'glass' as the default style when not specified
         GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
 
-        // Create a simple container for our elements
-        final Container myWindow = new Container();
-        guiNode.attachChild(myWindow);
+        menuWindow = new Container();
+        guiNode.attachChild(menuWindow);
+        menuWindow.setLocalTranslation(200, settings.getHeight() - 200, 0);
 
-        // Put it somewhere that we will see it
-        // Note: Lemur GUI elements grow down from the upper left corner.
-        myWindow.setLocalTranslation(200, settings.getHeight() - 200, 0);
-
-        // Add some elements
+        //TITLE
         Label title = new Label("GegenSchlägst: pauschal angreifend");
-        title.setFont(comicSans);
+        title.setFont(ubuntu);
         title.setFontSize(30f);
-        myWindow.addChild(title);
+        menuWindow.addChild(title);
         Label subtitle = new Label("Hauptmenü");
-        subtitle.setFont(comicSans);
+        subtitle.setFont(ubuntu);
         subtitle.setFontSize(55f);
-        myWindow.addChild(subtitle);
+        menuWindow.addChild(subtitle);
 
-        Label username = new Label("Username:");
-        username.setFont(comicSans);
+        //FIRST WINDOW
+        final Label lbConnect = menuWindow.addChild(new Label("Server Connection"));
+        lbConnect.setFont(ubuntu);
+        lbConnect.setFontSize(30f);
+        lbConnect.setColor(ColorRGBA.White);
+
+        final Label username = new Label("Username:");
+        username.setFont(ubuntu);
         username.setFontSize(20f);
-        myWindow.addChild(username);
+        menuWindow.addChild(username);
 
-        TextField usernameTf = new TextField("");
-        usernameTf.setFont(comicSans);
+        final TextField usernameTf = new TextField("");
+        usernameTf.setFont(ubuntu);
         usernameTf.setFontSize(28f);
-        myWindow.addChild(usernameTf);
+        menuWindow.addChild(usernameTf);
 
-        Label ipAddr = new Label("Server IP:");
-        ipAddr.setFont(comicSans);
+        final Label ipAddr = new Label("Server IP:");
+        ipAddr.setFont(ubuntu);
         ipAddr.setFontSize(20f);
-        myWindow.addChild(ipAddr);
+        menuWindow.addChild(ipAddr);
 
-        TextField ipAddrTf = new TextField("");
-        ipAddrTf.setFont(comicSans);
+        final TextField ipAddrTf = new TextField("localhost");
+        ipAddrTf.setFont(ubuntu);
         ipAddrTf.setFontSize(28f);
-        myWindow.addChild(ipAddrTf);
+        menuWindow.addChild(ipAddrTf);
 
-        Button startGame = myWindow.addChild(new Button("Start Game"));
-        startGame.setFont(comicSans);
+        final Button startGame = menuWindow.addChild(new Button("Start Game"));
+        startGame.setFont(ubuntu);
         startGame.setFontSize(25f);
+
         startGame.addClickCommands(new Command<Button>() {
             @Override
             public void execute(Button source) {
-                myWindow.removeFromParent();
-                inputManager.setCursorVisible(false);
-                initKeys();
-                initLights();
-                initCrossHair();
-                initMap();
-                generateEnemies();
-                player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
-                flyCam.setRotationSpeed(1);
+                menuWindow.removeChild(lbConnect);
+                menuWindow.removeChild(username);
+                menuWindow.removeChild(usernameTf);
+                menuWindow.removeChild(ipAddr);
+                menuWindow.removeChild(ipAddrTf);
+                menuWindow.removeChild(startGame);
+
+                String usr = usernameTf.getText();
+                String ip = ipAddrTf.getText();
+                player.setPlayerId(usr);
+                client = new Client(gegenschlaegst);
+                try {
+                    client.connect(ip);
+                } catch (IOException ex) {
+                    Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
+                    return;
+                }
+                client.send("TEAMS");
             }
         });
     }
 
+    List<Button> teamButtons = new ArrayList<>();
+
+    public void teamMenu(List<String> teams) {
+        System.out.println("ou yesse!!!");
+        final Label lbTeam = menuWindow.addChild(new Label("Team Selection"));
+        lbTeam.setFont(ubuntu);
+        lbTeam.setFontSize(30f);
+        lbTeam.setColor(ColorRGBA.White);
+        for (final String team : teams) {
+            Button selectTeam = menuWindow.addChild(new Button(" Join \"" + team + "\""));
+            selectTeam.setName(team);
+            selectTeam.setFont(ubuntu);
+            selectTeam.setFontSize(25f);
+            selectTeam.addClickCommands(new Command<Button>() {
+                @Override
+                public void execute(Button s) {
+                    lbTeam.removeFromParent();
+                    inputManager.setCursorVisible(false);
+                    //set team
+                    player.setTeam(team);
+                    //remove buttons
+                    for (Button btn : teamButtons) {
+                        menuWindow.removeChild(btn);
+                    }
+                    menuWindow.addChild(new Label("Loading..."));
+                    //Start game
+
+                    initKeys();
+                    initLights();
+                    initCrossHair();
+                    initMap();
+                    initWeapon();
+                    initHUD();
+                    player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
+                    flyCam.setRotationSpeed(1);
+                    gameRunning = true;
+                    menuWindow.removeFromParent();
+                }
+            });
+            teamButtons.add(selectTeam);
+            menuWindow.addChild(selectTeam);
+        }
+    }
+
     @Override
     public void receive(Object obj) {
+        if (obj instanceof List) {
+            List objects = (List) obj;
+            if (objects.size() == 0) {
+                System.out.println("Empty list received");
+                return;
+            }
+            if (objects.get(0) instanceof PlayerData) {
+
+            }
+            if (objects.get(0) instanceof String) { //Teams List
+                teams = (List<String>) obj;
+            }
+        }
+        if (obj instanceof PlayerData) {
+            PlayerData pd = (PlayerData) obj;
+            synchronized (players) {
+                if (!player.getPlayerId().equals(pd.getPlayerID())) {
+                    players.put(pd.getPlayerID(), pd);
+                }
+            }
+            System.out.println("PLAYERDATA RECEIVED!! " + obj);
+        }
+        if(obj instanceof Damage) {
+            Damage dmg = (Damage)obj;
+            if(dmg.getPlayer().equals(player.getPlayerId())){
+                player.setHealth(player.getHealth() - dmg.getDamageValue());
+            }
+        }
+        
+    }
+
+    public void updatePlayerObjects() {
+        synchronized (players) {
+            for (String pl : players.keySet()) {
+                PlayerData data = players.get(pl);
+
+                if (playerSpatials.containsKey(pl)) {
+                    Spatial gameObj = playerSpatials.get(pl);
+                    gameObj.setLocalTranslation(data.getPosition());
+                    gameObj.setLocalRotation(new Quaternion(0, data.getFacingDir().angleBetween(Vector3f.UNIT_Z), 0, 1));
+                } else {
+                    Spatial gameObj = assetManager.loadModel("Models/cent/cent.j3o");
+                    gameObj.setLocalScale(0.3f);
+                    gameObj.setLocalTranslation(data.getPosition());
+                    rootNode.attachChild(gameObj);
+                    playerSpatials.put(pl, gameObj);
+                }
+            }
+        }
+    }
+
+    Picture blood;
+    BitmapText health;
+    BitmapText armor;
+
+    public void showblood(boolean show) {
+        if (show) {
+            blood.setImage(assetManager, "Textures/blood.png", true);
+        } else {
+            blood.setImage(assetManager, "Textures/noblood.png", true);
+        }
+    }
+
+    public void initHUD() {
+        blood = new Picture("HUD Picture");
+        blood.setImage(assetManager, "Textures/noblood.png", true);
+        blood.setWidth(settings.getWidth());
+        blood.setHeight(settings.getHeight());
+        blood.setPosition(0, 0);
+        guiNode.attachChild(blood);
+
+        Picture pic = new Picture("HUD Picture");
+        pic.setImage(assetManager, "Textures/hud.png", true);
+        pic.setWidth(320);
+        pic.setHeight(140);
+        pic.setPosition(0, 0);
+        guiNode.attachChild(pic);
+
+        BitmapText name = new BitmapText(ubuntu, false);
+        name.setSize(guiFont.getCharSet().getRenderedSize());      // font size
+        name.setColor(ColorRGBA.White);                             // font color
+        name.setText(player.getPlayerId());             // the text
+        name.setSize(24);
+        name.setLocalTranslation(20, name.getLineHeight() + 80, 0); // position
+        guiNode.attachChild(name);
+
+        BitmapText team = new BitmapText(ubuntu, false);
+        team.setSize(guiFont.getCharSet().getRenderedSize());      // font size
+        team.setColor(ColorRGBA.Yellow);                             // font color
+        team.setText(player.getTeam());             // the text
+        team.setSize(24);
+        team.setLocalTranslation(40 + name.getLineWidth(), name.getLineHeight() + 80, 0); // position
+        guiNode.attachChild(team);
+
+        health = new BitmapText(ubuntu, false);
+        health.setSize(guiFont.getCharSet().getRenderedSize());      // font size
+        health.setColor(new ColorRGBA(1, 0.8f, 0.8f, 1));                             // font color
+        health.setText("Health: 10/10");             // the text
+        health.setSize(30);
+        health.setLocalTranslation(20, health.getLineHeight() + 50, 0); // position
+        guiNode.attachChild(health);
+
+         
+        armor = new BitmapText(ubuntu, false);
+        armor.setSize(guiFont.getCharSet().getRenderedSize());      // font size
+        armor.setColor(new ColorRGBA(0.8f, 0.8f, 1, 1));                             // font color
+        armor.setText("Teflon: 0/10");             // the text
+        armor.setSize(30);
+        armor.setLocalTranslation(20, armor.getLineHeight() + 20, 0); // position
+        guiNode.attachChild(armor);
 
     }
+
+    @Override
+    public void destroy() {
+        super.destroy();
+        client.disconnect();
+        System.exit(0);
+    }
+
 }
