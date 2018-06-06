@@ -27,6 +27,7 @@ public class Client implements Runnable {
     private ObjectInputStream in;
     private String name;
     private Receiver recv;
+    private static int PORT = 8089;
 
     boolean running = false;
 
@@ -38,7 +39,7 @@ public class Client implements Runnable {
 
     public void connect(String address) throws IOException {
         running = true;
-        this.so = new Socket(address, 8080);
+        this.so = new Socket(address, PORT);
         this.out = new ObjectOutputStream(this.so.getOutputStream());
         this.in = new ObjectInputStream(this.so.getInputStream());
         Thread t = new Thread(this);
