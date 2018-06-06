@@ -1,4 +1,4 @@
-wwwpackage mygame;
+package mygame;
 
 import beans.Damage;
 import beans.PlayerData;
