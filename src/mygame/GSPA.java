@@ -157,6 +157,8 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             String hit = player.shoot(tpf, playerSpatials);
             if (hit != null) {
                 client.send(new Damage(hit, 2));
+            } else {
+                client.send(new Damage("noone", 0));
             }
             bulletTimeout = 30;
         }
@@ -443,6 +445,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 player.setHealth(player.getHealth() - dmg.getDamageValue());
                 showBlood = 6;
             }
+            audio.playGunSound();
         }
 
     }
