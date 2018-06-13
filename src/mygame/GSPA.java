@@ -1,7 +1,6 @@
 package mygame;
 
 import beans.Damage;
-import beans.Kill;
 import beans.PlayerData;
 import beans.PlayerStatus;
 import gameobjects.Enemy;
@@ -22,12 +21,14 @@ import com.jme3.input.controls.MouseButtonTrigger;
 import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
+import com.jme3.math.Matrix3f;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.system.AppSettings;
+import com.jme3.texture.Image;
 import com.jme3.texture.Texture;
 import com.jme3.ui.Picture;
 import com.jme3.util.SkyFactory;
@@ -37,6 +38,7 @@ import com.simsilica.lemur.Container;
 import com.simsilica.lemur.GuiGlobals;
 import com.simsilica.lemur.Label;
 import com.simsilica.lemur.TextField;
+import com.simsilica.lemur.component.IconComponent;
 import com.simsilica.lemur.style.BaseStyles;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,8 +60,6 @@ import java.util.logging.Logger;
  */
 public class GSPA extends SimpleApplication implements ActionListener, Receiver {
 
-    private final float movementSpeed = 10;
-    private float sinusWaveMovePos = 0;
     private float bulletTimeout = 0;
 
     //______________________________
@@ -92,6 +92,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private BitmapText hudHealth;
     private BitmapText hudArmor;
     private BitmapText hudStatus;
+    private Picture hudKilled;
 
     public static void main(String[] args) {
         GSPA app = new GSPA();
@@ -124,6 +125,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
         initMenu();
         initMap();
+        initLights();
         flyCam.setMoveSpeed(0);
         flyCam.setRotationSpeed(0);
         audio.playHorseTechno();
@@ -133,6 +135,14 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         hudStatus.setSize(30);
         guiNode.attachChild(hudStatus);
 
+        hudKilled = new Picture("HUD Picture");
+        hudKilled.setImage(assetManager, "Textures/transparent_black.png", true);
+        hudKilled.setWidth(settings.getWidth());
+        hudKilled.setHeight(settings.getHeight());
+        hudKilled.setPosition(0, 0);
+        
+        //player.getPlayer().setPhysicsLocation(new Vector3f(-100, -100, -100));
+        //guiNode.attachChild(hudKilled);
     }
 
     @Override
@@ -143,6 +153,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
 
         if (!gameRunning) {
+            sceneModel.rotate(0.0004f, 0.0005f, 0.0f);
             return;
         }
 
@@ -185,11 +196,15 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         --showBlood;
 
         if (player.getHealth() <= 0) {
-            player.setHealth(0);
-            client.send(new PlayerStatus(player.getPlayerId(), PlayerStatus.Type.DEAD));
-            System.exit(0);
+
         }
         hudHealth.setText("Health: " + player.getHealth() + "/10");
+    }
+
+    public void killmyself() {
+        player.setHealth(0);
+        client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.DEAD));
+
     }
 
     @Override
@@ -266,14 +281,11 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     public void initMap() {
         // We load the scene from the zip file and adjust its size.
         //assetManager.registerLocator("town.zip", ZipLocator.class);
-        // sceneModel = assetManager.loadModel("Models/Map_Alpha_02/Map_Alpha_0.2.j3o");
         sceneModel = assetManager.loadModel("Models/scifitown/scifi dowtown scenery.j3o");
-        //sceneModel = assetManager.loadModel("main.scene");
         sceneModel.setLocalScale(0.2f);
-        sceneModel.setLocalTranslation(0, -100, 0);
-    }
 
-    public void showMap() {
+        sceneModel.setLocalTranslation(0, -100, 0);
+
         // We set up collision detection for the scene by creating a
         // compound collision shape and a static RigidBodyControl with mass zero.
         CollisionShape sceneShape
@@ -307,14 +319,15 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         menuWindow.setLocalTranslation(200, settings.getHeight() - 200, 0);
 
         //TITLE
-        Label title = new Label("GegenSchlägst: pauschal angreifend");
-        title.setFont(ubuntu);
-        title.setFontSize(30f);
+//        Label title = new Label("GegenSchlägst: pauschal angreifend");
+//        
+//        title.setFont(ubuntu);
+//        title.setFontSize(30f);
+//        menuWindow.addChild(title);
+        //Panel myImage = new Panel();
+        Label title = new Label("");
+        title.setBackground(new IconComponent("Textures/menu-banner.png"));
         menuWindow.addChild(title);
-        Label subtitle = new Label("Hauptmenü");
-        subtitle.setFont(ubuntu);
-        subtitle.setFontSize(55f);
-        menuWindow.addChild(subtitle);
 
         //FIRST WINDOW
         final Label lbConnect = menuWindow.addChild(new Label("Server Connection"));
@@ -355,21 +368,21 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 client = new Client(gegenschlaegst);
                 try {
                     client.connect(ip);
+                    client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.LOGGED_IN));
+                    client.send("TEAMS");
                     setStatusText("Connceted to " + ip);
+
+                    menuWindow.removeChild(lbConnect);
+                    menuWindow.removeChild(username);
+                    menuWindow.removeChild(usernameTf);
+                    menuWindow.removeChild(ipAddr);
+                    menuWindow.removeChild(ipAddrTf);
+                    menuWindow.removeChild(startGame);
                 } catch (IOException ex) {
                     Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
                     setStatusText("Connection Refused");
                     return;
                 }
-                menuWindow.removeChild(lbConnect);
-                menuWindow.removeChild(username);
-                menuWindow.removeChild(usernameTf);
-                menuWindow.removeChild(ipAddr);
-                menuWindow.removeChild(ipAddrTf);
-                menuWindow.removeChild(startGame);
-
-                client.send("TEAMS");
-
             }
         });
     }
@@ -402,14 +415,13 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     //Start game
                     audio.stopHorseTechno();
                     initKeys();
-                    initLights();
                     initCrossHair();
-                    showMap();
                     initWeapon();
                     initHUD();
                     player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
                     flyCam.setRotationSpeed(1);
                     gameRunning = true;
+                    sceneModel.setLocalRotation(Matrix3f.IDENTITY);
                     menuWindow.removeFromParent();
                 }
             });
@@ -431,6 +443,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             }
             if (objects.get(0) instanceof String) { //Teams List
                 teams = (List<String>) obj;
+                System.out.println("Reams receivesd");
             }
         }
         if (obj instanceof PlayerData) {

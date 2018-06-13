@@ -14,14 +14,16 @@ import java.io.Serializable;
 public class PlayerStatus implements Serializable {
 
     private String playerID;
+    private String player2ID;
     private Type type;
 
     public enum Type {
         LOGGED_IN, PLAYING, DEAD, DISCONNECTED
     }
 
-    public PlayerStatus(String playerID, Type type) {
+    public PlayerStatus(String playerID, String player2ID, Type type) {
         this.playerID = playerID;
+        this.player2ID = player2ID;
         this.type = type;
     }
 
@@ -31,6 +33,14 @@ public class PlayerStatus implements Serializable {
 
     public void setPlayerID(String playerID) {
         this.playerID = playerID;
+    }
+
+    public String getPlayer2ID() {
+        return player2ID;
+    }
+
+    public void setPlayer2ID(String player2ID) {
+        this.player2ID = player2ID;
     }
 
     public Type getType() {
