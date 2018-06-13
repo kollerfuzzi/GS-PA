@@ -38,7 +38,8 @@ public class Player {
         player = new CharacterControl(capsuleShape, 0.05f);
         player.setJumpSpeed(20);
         player.setFallSpeed(30);
-        player.setPhysicsLocation(new Vector3f(0, 10, 0));
+        player.setGravity(new Vector3f(0, -20, 0)); // for windows
+        player.setPhysicsLocation(new Vector3f(0, 4, 0)); 
         bulletAppState.getPhysicsSpace().add(player);
         this.cam = cam;
         this.sound = sound;
@@ -68,7 +69,9 @@ public class Player {
             walkDirection.addLocal(camLeft.negate());
         }
         if (inputEvents.contains("Jump")) {
-            player.jump(new Vector3f(0, 5, 0));
+            if (player.onGround()) {
+                player.jump(new Vector3f(0, 5, 0));
+            }
         }
         if (inputEvents.contains("Sprint")) {
             speedMult *= 2;
@@ -82,9 +85,9 @@ public class Player {
         Spatial closestCollision = null;
         String closestCollisionPlayer = null;
         Ray ray = new Ray(cam.getLocation(), cam.getDirection());
-        
+
         CollisionResults results = new CollisionResults();
-        for (String player  : otherPlayers.keySet()) {
+        for (String player : otherPlayers.keySet()) {
             Spatial s = otherPlayers.get(player);
             s.collideWith(ray, results);
             if (results.getClosestCollision() != null
@@ -100,7 +103,7 @@ public class Player {
     public CharacterControl getPlayer() {
         return player;
     }
-    
+
     public PlayerData getPlayerData() {
         PlayerData data = new PlayerData(playerId, team, player.getPhysicsLocation(), cam.getDirection(), walkDirection);
         return data;
@@ -141,7 +144,5 @@ public class Player {
     public void setHealth(int health) {
         this.health = health;
     }
-    
-    
 
 }
