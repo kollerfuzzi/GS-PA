@@ -59,6 +59,7 @@ public class Client implements Runnable {
     public void disconnect() {
         running = false;
         try {
+            send("exit");
             this.so.close();
         } catch (IOException ex) {
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);

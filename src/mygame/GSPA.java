@@ -3,6 +3,7 @@ package mygame;
 import beans.Damage;
 import beans.PlayerData;
 import beans.PlayerStatus;
+import gameobjects.Scoreboard;
 import gameobjects.Player;
 import com.jme3.app.SimpleApplication;
 import com.jme3.bullet.BulletAppState;
@@ -37,6 +38,7 @@ import com.simsilica.lemur.Label;
 import com.simsilica.lemur.TextField;
 import com.simsilica.lemur.component.IconComponent;
 import com.simsilica.lemur.style.BaseStyles;
+import gameobjects.LogWindowsn;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -93,6 +95,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private Picture hudKilled;
     private BitmapText hudKilledTxt;
 
+    private Scoreboard scboard;
+    private LogWindowsn logWin;
+
     /**
      * Main method of the Game Sets the title dialog and its settings, to start
      * the game
@@ -145,7 +150,14 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
         //player.getPlayer().setPhysicsLocation(new Vector3f(-100, -100, -100));
         //guiNode.attachChild(hudKilled);
+        scboard = new Scoreboard(guiNode, ubuntu, settings, assetManager);
+        scboard.setScoreData(Scoreboard.WAIT_SCOREBOARD);
+        
+        logWin = new LogWindowsn(guiNode, guiFont, settings, assetManager);
+        logWin.initLogWindow();
+        logWin.showLogWindowsn(true);
     }
+    
 
     /**
      * Update method of the game, frequency depends on the system performance.
@@ -187,6 +199,15 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         if (client != null) {
             client.send(player.getPlayerData());
         }
+
+        if (inputEvents.contains("Scoreboard") && !scboard.isDisplaying()) {
+            scboard.generateScoreBoard();
+            client.send("gimmiscoreboardnowwwww");
+            scboard.showScoreBoard(true);
+        } else if (!inputEvents.contains("Scoreboard") && scboard.isDisplaying()) {
+            scboard.showScoreBoard(false);
+        }
+
         synchronized (players) {
             updatePlayerObjects();
         }
@@ -257,13 +278,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                         Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 } while (--countdown >= 0);
-                //remove countdown
-                gegenschlaegst.enqueue(new Runnable() {
-                    @Override
-                    public void run() {
-
-                    }
-                });
                 //restarts the game and removes the hudKilled overlay
                 gegenschlaegst.enqueue(new Runnable() {
                     @Override
@@ -316,7 +330,8 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         inputManager.addMapping("Jump", new KeyTrigger(KeyInput.KEY_SPACE));
         inputManager.addMapping("Sprint", new KeyTrigger(KeyInput.KEY_LSHIFT));
         inputManager.addMapping("Shoot", new MouseButtonTrigger(MouseInput.BUTTON_LEFT));
-        inputManager.addListener(this, "Left", "Right", "Up", "Down", "Jump", "Sprint", "Shoot");
+        inputManager.addMapping("Scoreboard", new KeyTrigger(KeyInput.KEY_TAB));
+        inputManager.addListener(this, "Left", "Right", "Up", "Down", "Jump", "Sprint", "Shoot", "Scoreboard");
     }
 
     /**
@@ -457,7 +472,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     client.connect(ip);
                     client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.LOGGED_IN));
                     client.send("TEAMS");
-                    setStatusText("Connceted to " + ip);
+                    appendLogMessage("Connceted to " + ip);
 
                     menuWindow.removeChild(lbConnect);
                     menuWindow.removeChild(username);
@@ -467,7 +482,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     menuWindow.removeChild(startGame);
                 } catch (IOException ex) {
                     Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
-                    setStatusText("Connection Refused");
+                    appendLogMessage("Connection Refused");
                     return;
                 }
             }
@@ -617,14 +632,27 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             }
         }
 
-        if(obj instanceof String) {
-            final String receivedMsg = (String)obj;
+        if (obj instanceof String) {
+            final String receivedMsg = (String) obj;
             gegenschlaegst.enqueue(new Runnable() {
                 @Override
                 public void run() {
-                    setStatusText(receivedMsg);
+                    appendLogMessage(receivedMsg);
                 }
             });
+            System.out.println("Status received: " + receivedMsg);
+        }
+
+        if (obj instanceof Object[][]) {
+            final Object scoreData[][] = (Object[][]) obj;
+            gegenschlaegst.enqueue(new Runnable() {
+                @Override
+                public void run() {
+                    scboard.setScoreData(scoreData);
+                    scboard.generateScoreBoard();
+                }
+            });
+            
         }
     }
 
@@ -638,8 +666,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
                 if (playerSpatials.containsKey(pl)) {
                     Spatial gameObj = playerSpatials.get(pl);
-                    System.out.println(data.getFacingDir().negate());
-                    Vector3f realObjectPos = data.getPosition().subtract(0, 5, 0);
+                    Vector3f realObjectPos = data.getPosition().subtract(0, 4.5f, 0);
                     gameObj.setLocalTranslation(realObjectPos);
                     gameObj.lookAt(realObjectPos.add(data.getFacingDir()), Vector3f.UNIT_Y);
 
@@ -656,7 +683,8 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     /**
      * Shows or hides the blood overlay
-     * @param show 
+     *
+     * @param show
      */
     public void showblood(boolean show) {
         if (show) {
@@ -689,7 +717,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         name.setColor(ColorRGBA.White);
         name.setText(player.getPlayerId());
         name.setSize(24);
-        name.setLocalTranslation(20, name.getLineHeight() + 80, 0); 
+        name.setLocalTranslation(20, name.getLineHeight() + 80, 0);
         guiNode.attachChild(name);
 
         BitmapText team = new BitmapText(ubuntu, false);
@@ -697,7 +725,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         team.setColor(ColorRGBA.Yellow);
         team.setText(player.getTeam());
         team.setSize(24);
-        team.setLocalTranslation(40 + name.getLineWidth(), name.getLineHeight() + 80, 0); 
+        team.setLocalTranslation(40 + name.getLineWidth(), name.getLineHeight() + 80, 0);
         guiNode.attachChild(team);
 
         hudHealth = new BitmapText(ubuntu, false);
@@ -705,15 +733,15 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         hudHealth.setColor(new ColorRGBA(1, 0.8f, 0.8f, 1));
         hudHealth.setText("Health: 10/10");
         hudHealth.setSize(30);
-        hudHealth.setLocalTranslation(20, hudHealth.getLineHeight() + 50, 0); 
+        hudHealth.setLocalTranslation(20, hudHealth.getLineHeight() + 50, 0);
         guiNode.attachChild(hudHealth);
 
         hudArmor = new BitmapText(ubuntu, false);
         hudArmor.setSize(guiFont.getCharSet().getRenderedSize());
         hudArmor.setColor(new ColorRGBA(0.8f, 0.8f, 1, 1));
-        hudArmor.setText("Teflon: 0/10");
+        hudArmor.setText("Shield: 0/10");
         hudArmor.setSize(30);
-        hudArmor.setLocalTranslation(20, hudArmor.getLineHeight() + 20, 0); 
+        hudArmor.setLocalTranslation(20, hudArmor.getLineHeight() + 20, 0);
         guiNode.attachChild(hudArmor);
 
         hudKilled = new Picture("HUD Picture");
@@ -731,12 +759,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     }
 
     /**
-     * Sets the status text in the upper right corner
+     * Appends a Message to the Log window
+     *
      * @param statusTxt Text to display
      */
-    public void setStatusText(String statusTxt) {
-        hudStatus.setText(statusTxt);             // the text
-        hudStatus.setLocalTranslation(settings.getWidth() - hudStatus.getLineWidth() - 50, settings.getHeight() - 50, 0); // position
+    public void appendLogMessage(String statusTxt) {
+        logWin.appendLogMessage(statusTxt);
     }
 
     /**
