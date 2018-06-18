@@ -146,9 +146,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
         hudKilledTxt = new BitmapText(ubuntu, false);
         hudKilledTxt.setColor(new ColorRGBA(1, 1, 1, 1));                             // font color
-        hudKilledTxt.setSize(50);
-        hudKilledTxt.setText(INPUT_MAPPING_EXIT);
-        hudKilledTxt.setLocalTranslation(100, settings.getHeight(), 10);
+        hudKilledTxt.setSize(80);
+        hudKilledTxt.setText("");
+        hudKilledTxt.setLocalTranslation(100, settings.getHeight() - 100, 10);
         guiNode.attachChild(hudKilledTxt);
 
         //player.getPlayer().setPhysicsLocation(new Vector3f(-100, -100, -100));
@@ -221,7 +221,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         player.setHealth(0);
         client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.DEAD));
         guiNode.attachChild(hudKilled);
-        setStatusText("you were killed");
         gameRunning = false;
         audio.playHorseTechno();
         weapon.removeFromParent();
@@ -244,6 +243,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     }
                     System.out.println(countdown);
                 } while (--countdown >= 0);
+                gegenschlaegst.enqueue(new Runnable() {
+                    @Override
+                    public void run() {
+                        hudKilledTxt.removeFromParent();
+                    }
+                });
                 gegenschlaegst.enqueue(new Runnable() {
                     @Override
                     public void run() {
@@ -507,7 +512,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     rip.setLocalScale(1f);
                     rip.setLocalTranslation(killedOne.getLocalTranslation());
                     rootNode.attachChild(rip);
-                    playerSpatials.put(player, rip);
+                    playerSpatials.remove(player);
                     killedOne.removeFromParent();
                     return 0;
                 }
