@@ -49,6 +49,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -93,6 +95,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private BitmapText hudArmor;
     private BitmapText hudStatus;
     private Picture hudKilled;
+    private BitmapText hudKilledTxt;
 
     public static void main(String[] args) {
         GSPA app = new GSPA();
@@ -130,17 +133,24 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         flyCam.setRotationSpeed(0);
         audio.playHorseTechno();
 
-        hudStatus = new BitmapText(ubuntu, false);
-        hudStatus.setColor(new ColorRGBA(0.5f, 0f, 0f, 1));                             // font color
-        hudStatus.setSize(30);
-        guiNode.attachChild(hudStatus);
-
         hudKilled = new Picture("HUD Picture");
         hudKilled.setImage(assetManager, "Textures/transparent_black.png", true);
         hudKilled.setWidth(settings.getWidth());
         hudKilled.setHeight(settings.getHeight());
         hudKilled.setPosition(0, 0);
-        
+
+        hudStatus = new BitmapText(ubuntu, false);
+        hudStatus.setColor(new ColorRGBA(0.6f, 0.1f, 0.1f, 1));                             // font color
+        hudStatus.setSize(30);
+        guiNode.attachChild(hudStatus);
+
+        hudKilledTxt = new BitmapText(ubuntu, false);
+        hudKilledTxt.setColor(new ColorRGBA(1, 1, 1, 1));                             // font color
+        hudKilledTxt.setSize(50);
+        hudKilledTxt.setText(INPUT_MAPPING_EXIT);
+        hudKilledTxt.setLocalTranslation(100, settings.getHeight(), 10);
+        guiNode.attachChild(hudKilledTxt);
+
         //player.getPlayer().setPhysicsLocation(new Vector3f(-100, -100, -100));
         //guiNode.attachChild(hudKilled);
     }
@@ -196,15 +206,59 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         --showBlood;
 
         if (player.getHealth() <= 0) {
-
+            killmyself();
         }
+
+        if (player.getPlayerData().getPosition().y < -150) {
+            killmyself();
+        }
+
         hudHealth.setText("Health: " + player.getHealth() + "/10");
     }
 
+    int countdown;
     public void killmyself() {
         player.setHealth(0);
         client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.DEAD));
-
+        guiNode.attachChild(hudKilled);
+        setStatusText("you were killed");
+        gameRunning = false;
+        audio.playHorseTechno();
+        weapon.removeFromParent();
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                countdown = 5;
+                do {
+                    guiNode.attachChild(hudKilledTxt);
+                    gegenschlaegst.enqueue(new Runnable() {
+                        @Override
+                        public void run() {
+                            hudKilledTxt.setText("Respawn in " + countdown + " seconds");
+                        }
+                    });
+                    try {
+                        Thread.sleep(1000l);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                    System.out.println(countdown);
+                } while (--countdown >= 0);
+                gegenschlaegst.enqueue(new Runnable() {
+                    @Override
+                    public void run() {
+                        rootNode.attachChild(weapon);
+                        player.setHealth(10);
+                        sceneModel.setLocalRotation(Matrix3f.IDENTITY);
+                        hudKilled.removeFromParent();
+                        player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
+                        audio.stopHorseTechno();
+                        gameRunning = true;
+                    }
+                });
+            }
+        });
+        t.start();
     }
 
     @Override
@@ -265,19 +319,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         guiNode.attachChild(ch);
     }
 
-    private void generateEnemies() {
-        Random r = new Random();
-        for (int i = 0; i < 10; ++i) {
-            float dist = r.nextFloat() * 100 - 50;
-            float dirX = r.nextFloat();
-            float dirZ = r.nextFloat();
-            Enemy enemy = new Enemy(assetManager, new Vector3f(10, -3, dist), new Vector3f(dirX, 0, dirZ));
-            rootNode.attachChild(enemy.getObject());
-            enemy.getObject().setName("ENEMY_" + i);
-            enemies.add(enemy);
-        }
-    }
-
     public void initMap() {
         // We load the scene from the zip file and adjust its size.
         //assetManager.registerLocator("town.zip", ZipLocator.class);
@@ -303,12 +344,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         rootNode.attachChild(weapon);
     }
 
-    private BitmapText helloText;
-
-    private void changeText(String text) {
-        helloText.setText("BulletTimeout: " + text);
-    }
-
     public void initMenu() {
         GuiGlobals.initialize(this);
         BaseStyles.loadGlassStyle();
@@ -318,13 +353,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         guiNode.attachChild(menuWindow);
         menuWindow.setLocalTranslation(200, settings.getHeight() - 200, 0);
 
-        //TITLE
-//        Label title = new Label("GegenSchlägst: pauschal angreifend");
-//        
-//        title.setFont(ubuntu);
-//        title.setFontSize(30f);
-//        menuWindow.addChild(title);
-        //Panel myImage = new Panel();
         Label title = new Label("");
         title.setBackground(new IconComponent("Textures/menu-banner.png"));
         menuWindow.addChild(title);

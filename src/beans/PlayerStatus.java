@@ -51,4 +51,9 @@ public class PlayerStatus implements Serializable {
         this.type = type;
     }
 
+    @Override
+    public String toString() {
+        return "PlayerStatus{" + "playerID=" + playerID + ", player2ID=" + player2ID + ", type=" + type + '}';
+    }
+
 }
