@@ -140,7 +140,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         hudKilled.setWidth(settings.getWidth());
         hudKilled.setHeight(settings.getHeight());
         hudKilled.setPosition(0, 0);
-        
+
         //player.getPlayer().setPhysicsLocation(new Vector3f(-100, -100, -100));
         //guiNode.attachChild(hudKilled);
     }
