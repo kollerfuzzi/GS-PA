@@ -12,7 +12,7 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial;
 
 /**
- *
+ * Class to test collision, not used in the game anymore
  * @author koller
  */
 public class Enemy extends GameObject {

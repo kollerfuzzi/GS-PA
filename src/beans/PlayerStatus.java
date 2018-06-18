@@ -8,7 +8,7 @@ package beans;
 import java.io.Serializable;
 
 /**
- *
+ * Class to inidcate the player status (LOGGED_IN, PLAYING, DEAD...)
  * @author koller
  */
 public class PlayerStatus implements Serializable {

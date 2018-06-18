@@ -14,7 +14,7 @@ import com.jme3.system.AppSettings;
 import com.jme3.ui.Picture;
 
 /**
- *
+ * Class for displaying log messages of the server
  * @author koller
  */
 public class LogWindowsn {
@@ -43,6 +43,9 @@ public class LogWindowsn {
         }
     }
 
+    /**
+     * Initializes the logWindow (background, ringpuffer)
+     */
     public void initLogWindow() {
         logBG = new Picture("HUD Picture");
 
@@ -57,6 +60,9 @@ public class LogWindowsn {
         updateLogMessages();
     }
 
+    /**
+     * updates the logmessages if messages were added
+     */
     public void updateLogMessages() {
         for (int i = 0; i < ringPufferLog.length; i++) {
             if(ringPuffer[i] != null) {
@@ -69,6 +75,12 @@ public class LogWindowsn {
         }
     }
 
+    /**
+     * Creates a new BitmapText
+     * @param text Text content of the BitmapText
+     * @param color Color of the BitmapText
+     * @return the BitmapText
+     */
     private BitmapText createTextNode(String text, ColorRGBA color) {
         BitmapText textNode = new BitmapText(boardFont, false);
         textNode.setSize(boardFont.getCharSet().getRenderedSize());
@@ -79,6 +91,10 @@ public class LogWindowsn {
         return textNode;
     }
 
+    /**
+     * Appends a log message and updates the logMessages
+     * @param msg 
+     */
     public void appendLogMessage(String msg) {
         for (int i = ringPuffer.length - 1; i > 0; --i) {
             ringPufferLog[i] = ringPufferLog[i - 1];
@@ -87,6 +103,10 @@ public class LogWindowsn {
         updateLogMessages();
     }
     
+    /**
+     * Show or hide the LogWindow
+     * @param showlog boolean to show or hide
+     */
     public void showLogWindowsn(boolean showlog) {
         if(showlog) {
             guiNode.attachChild(logBG);

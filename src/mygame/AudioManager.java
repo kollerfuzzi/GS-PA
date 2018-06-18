@@ -11,7 +11,7 @@ import com.jme3.audio.AudioNode;
 import com.jme3.scene.Node;
 
 /**
- *
+ * Class for Managing sound effects and background music
  * @author koller
  */
 public class AudioManager {

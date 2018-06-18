@@ -175,6 +175,10 @@ public class Scoreboard {
         }
     }
 
+    /**
+     * Returns if the scoreboard is currently being displayed
+     * @return 
+     */
     public boolean isDisplaying() {
         return displaying;
     }

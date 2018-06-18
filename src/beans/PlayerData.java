@@ -9,7 +9,7 @@ import com.jme3.math.Vector3f;
 import java.io.Serializable;
 
 /**
- *
+ * Class to transfer player data, such as location, facing direction, movement direction or team
  * @author koller
  */
 public class PlayerData implements Serializable {

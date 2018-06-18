@@ -15,12 +15,11 @@ import com.jme3.math.Ray;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import com.jme3.scene.Spatial;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- *
+ * The class of the main Player in the Game<
  * @author koller
  */
 public class Player {

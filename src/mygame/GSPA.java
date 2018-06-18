@@ -696,7 +696,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     break;
 
                 case STOPPED:
-                    killmyself(KillType.ROUNDOVER);
+                    gegenschlaegst.enqueue(new Runnable() {
+                        @Override
+                        public void run() {
+                            killmyself(KillType.ROUNDOVER);
+                        }
+                    });
                     break;
             }
         }
@@ -712,7 +717,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
                 if (playerSpatials.containsKey(pl)) {
                     Spatial gameObj = playerSpatials.get(pl);
-                    Vector3f realObjectPos = data.getPosition().subtract(0, 4.5f, 0);
+                    Vector3f realObjectPos = data.getPosition().subtract(0, 4f, 0);
                     gameObj.setLocalTranslation(realObjectPos);
                     gameObj.lookAt(realObjectPos.add(data.getFacingDir()), Vector3f.UNIT_Y);
 

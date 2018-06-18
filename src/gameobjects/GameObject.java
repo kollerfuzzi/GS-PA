@@ -8,7 +8,7 @@ package gameobjects;
 import com.jme3.scene.Spatial;
 
 /**
- *
+ * Class for a standard GameObject interface
  * @author koller
  */
 public abstract class GameObject {
