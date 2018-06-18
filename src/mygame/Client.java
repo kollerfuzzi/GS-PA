@@ -5,7 +5,6 @@
  */
 package mygame;
 
-import beans.PlayerData;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -17,6 +16,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * The client which connects to the GSPA Server
  *
  * @author koller
  */
@@ -37,6 +37,12 @@ public class Client implements Runnable {
         this.recv = recv;
     }
 
+    /**
+     * Connects to the server
+     *
+     * @param address Address to connect to
+     * @throws IOException
+     */
     public void connect(String address) throws IOException {
         running = true;
         this.so = new Socket(address, PORT);
@@ -47,10 +53,22 @@ public class Client implements Runnable {
         this.so.setSoTimeout(500);
     }
 
+    /**
+     * Disconnect from server
+     */
     public void disconnect() {
-
+        running = false;
+        try {
+            this.so.close();
+        } catch (IOException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 
+    /**
+     * Sends a message (object) to server
+     * @param obj Object to send to the server
+     */
     public void send(Object obj) {
         try {
             this.out.writeObject(obj);
@@ -59,10 +77,18 @@ public class Client implements Runnable {
         }
     }
 
+    /**
+     * If an object gets received, it calls the receiver
+     * @throws IOException
+     * @throws ClassNotFoundException 
+     */
     public void receive() throws IOException, ClassNotFoundException {
         recv.receive(this.in.readObject());
     }
 
+    /**
+     * Receiver thread
+     */
     @Override
     public void run() {
         try {
@@ -80,6 +106,5 @@ public class Client implements Runnable {
 }
 
 interface Receiver {
-
     public void receive(Object obj);
 }

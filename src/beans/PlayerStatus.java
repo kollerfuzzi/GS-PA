@@ -18,7 +18,7 @@ public class PlayerStatus implements Serializable {
     private Type type;
 
     public enum Type {
-        LOGGED_IN, PLAYING, DEAD, DISCONNECTED
+        LOGGED_IN, PLAYING, DEAD, KILLEDHIMSELF, DISCONNECTED
     }
 
     public PlayerStatus(String playerID, String player2ID, Type type) {

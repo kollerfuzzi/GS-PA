@@ -3,7 +3,6 @@ package mygame;
 import beans.Damage;
 import beans.PlayerData;
 import beans.PlayerStatus;
-import gameobjects.Enemy;
 import gameobjects.Player;
 import com.jme3.app.SimpleApplication;
 import com.jme3.bullet.BulletAppState;
@@ -22,13 +21,11 @@ import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
 import com.jme3.math.Matrix3f;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.system.AppSettings;
-import com.jme3.texture.Image;
 import com.jme3.texture.Texture;
 import com.jme3.ui.Picture;
 import com.jme3.util.SkyFactory;
@@ -46,11 +43,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -64,7 +58,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     private float bulletTimeout = 0;
 
-    //______________________________
+    //GameObjects
     private Spatial sceneModel;
     private BulletAppState bulletAppState;
     private RigidBodyControl landscape;
@@ -73,17 +67,19 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private Spatial weapon;
     private Set<String> inputEvents = new HashSet<String>();
     private int showBlood = 0;
-    //______________________________
-    //MENU
+
+    //Menu
     private BitmapFont ubuntu;
     private Container menuWindow;
     private List<String> teams = new ArrayList<>();
 
-    private List<Enemy> enemies = new ArrayList<>();
-
+    //server connection
     private Client client;
+
+    //this for inner classes
     private final GSPA gegenschlaegst = this;
 
+    //game running?
     private boolean gameRunning = false;
 
     public final Map<String, PlayerData> players = new HashMap<>();
@@ -97,6 +93,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private Picture hudKilled;
     private BitmapText hudKilledTxt;
 
+    /**
+     * Main method of the Game Sets the title dialog and its settings, to start
+     * the game
+     *
+     * @param args
+     */
     public static void main(String[] args) {
         GSPA app = new GSPA();
         AppSettings settings = new AppSettings(false);
@@ -106,6 +108,10 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         app.start();
     }
 
+    /**
+     * Method which is called when the user starts the game. It is called when
+     * the user starts the game via the dialog.
+     */
     @Override
     public void simpleInitApp() {
         setDisplayStatView(false);
@@ -113,7 +119,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
         bulletAppState = new BulletAppState();
         stateManager.attach(bulletAppState);
-        //bulletAppState.getPhysicsSpace().enableDebug(assetManager);
 
         // We re-use the flyby camera for rotation, while positioning is handled by physics
         viewPort.setBackgroundColor(new ColorRGBA(0.7f, 0.8f, 1f, 1f));
@@ -133,42 +138,32 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         flyCam.setRotationSpeed(0);
         audio.playHorseTechno();
 
-        hudKilled = new Picture("HUD Picture");
-        hudKilled.setImage(assetManager, "Textures/transparent_black.png", true);
-        hudKilled.setWidth(settings.getWidth());
-        hudKilled.setHeight(settings.getHeight());
-        hudKilled.setPosition(0, 0);
-
         hudStatus = new BitmapText(ubuntu, false);
         hudStatus.setColor(new ColorRGBA(0.6f, 0.1f, 0.1f, 1));                             // font color
         hudStatus.setSize(30);
         guiNode.attachChild(hudStatus);
 
-        hudKilledTxt = new BitmapText(ubuntu, false);
-        hudKilledTxt.setColor(new ColorRGBA(1, 1, 1, 1));                             // font color
-        hudKilledTxt.setSize(80);
-        hudKilledTxt.setText("");
-        hudKilledTxt.setLocalTranslation(100, settings.getHeight() - 100, 10);
-        guiNode.attachChild(hudKilledTxt);
-
         //player.getPlayer().setPhysicsLocation(new Vector3f(-100, -100, -100));
         //guiNode.attachChild(hudKilled);
     }
 
+    /**
+     * Update method of the game, frequency depends on the system performance.
+     *
+     * @param tpf time passed since the last simpleUpdate call in seconds
+     */
     @Override
     public void simpleUpdate(float tpf) {
-        if (teams.size() != 0 && !gameRunning) {
-            teamMenu(teams);
-            teams.clear();
-        }
-
+        //if the game is not running, the map rotates
         if (!gameRunning) {
             sceneModel.rotate(0.0004f, 0.0005f, 0.0f);
             return;
         }
 
+        //method called for player movement
         player.playerControl(inputEvents, cam, tpf);
 
+        //sets the weapons rotation to display it in front of the player
         CharacterControl cc = player.getPlayer();
         Vector3f pLoc = cc.getPhysicsLocation();
         pLoc.addLocal(cam.getDirection().normalize().mult(2.5f));
@@ -176,6 +171,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         weapon.setLocalRotation(cam.getRotation());
         weapon.rotate(0, FastMath.DEG_TO_RAD * 90, 0);
 
+        //decreases the bullet timeout
+        bulletTimeout -= 60 * tpf;
+        //shoots if "Shoot" event occurs and the bullettimeout is less than 0
         if (inputEvents.contains("Shoot") && bulletTimeout < 0) {
             String hit = player.shoot(tpf, playerSpatials);
             if (hit != null) {
@@ -186,11 +184,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             bulletTimeout = 30;
         }
 
-        bulletTimeout -= 60 * tpf;
-
-        for (Enemy e : enemies) {
-            e.update(tpf);
-        }
         if (client != null) {
             client.send(player.getPlayerData());
         }
@@ -198,6 +191,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             updatePlayerObjects();
         }
 
+        //shows the blood overlay if the player gets shoot
         if (showBlood == 0) {
             showblood(false);
         } else if (showBlood == 6) {
@@ -205,57 +199,79 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
         --showBlood;
 
+        //if the player's health is less or equal than 0, he dies
         if (player.getHealth() <= 0) {
+            client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.DEAD));
             killmyself();
         }
 
+        //if the player falls to far (y -150), he dies
         if (player.getPlayerData().getPosition().y < -150) {
+            client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.KILLEDHIMSELF));
             killmyself();
         }
 
+        //displays the current player health
         hudHealth.setText("Health: " + player.getHealth() + "/10");
     }
 
     int countdown;
 
+    /**
+     * Called when the player kills him self, or gets killed by damage of
+     * another player. It tells the server that the player died, and respawns
+     * the player in the next 5 seconds.
+     */
     public void killmyself() {
+        //stop game
         player.setHealth(0);
-        client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.DEAD));
         guiNode.attachChild(hudKilled);
         gameRunning = false;
         audio.playHorseTechno();
         weapon.removeFromParent();
+        //thread to restart game in 5 seconds, and display a countdown to the player
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
                 countdown = 5;
+                //Show countdown
+                gegenschlaegst.enqueue(new Runnable() {
+                    @Override
+                    public void run() {
+                        guiNode.attachChild(hudKilledTxt);
+                    }
+                });
                 do {
-                    guiNode.attachChild(hudKilledTxt);
+                    //update countdown
                     gegenschlaegst.enqueue(new Runnable() {
                         @Override
                         public void run() {
                             hudKilledTxt.setText("Respawn in " + countdown + " seconds");
                         }
                     });
+
+                    //sleep 1 second
                     try {
                         Thread.sleep(1000l);
                     } catch (InterruptedException ex) {
                         Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
                     }
-                    System.out.println(countdown);
                 } while (--countdown >= 0);
+                //remove countdown
                 gegenschlaegst.enqueue(new Runnable() {
                     @Override
                     public void run() {
-                        hudKilledTxt.removeFromParent();
+
                     }
                 });
+                //restarts the game and removes the hudKilled overlay
                 gegenschlaegst.enqueue(new Runnable() {
                     @Override
                     public void run() {
                         rootNode.attachChild(weapon);
                         player.setHealth(10);
                         sceneModel.setLocalRotation(Matrix3f.IDENTITY);
+                        hudKilledTxt.removeFromParent();
                         hudKilled.removeFromParent();
                         player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
                         audio.stopHorseTechno();
@@ -272,6 +288,14 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         //TODO: add render code
     }
 
+    /**
+     * called if an input event occurs, and adds or removes the event from
+     * inputEvents
+     *
+     * @param name name of the event (Left, Right, Shoot, Jump...)
+     * @param isPressed indicates if the button of the event is pressed
+     * @param tpf ticks per frame
+     */
     @Override
     public void onAction(String name, boolean isPressed, float tpf) {
         if (isPressed) {
@@ -281,6 +305,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
     }
 
+    /**
+     * Maps the event names to the keys and to the eventlistener
+     */
     public void initKeys() {
         inputManager.addMapping("Left", new KeyTrigger(KeyInput.KEY_A));
         inputManager.addMapping("Right", new KeyTrigger(KeyInput.KEY_D));
@@ -292,6 +319,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         inputManager.addListener(this, "Left", "Right", "Up", "Down", "Jump", "Sprint", "Shoot");
     }
 
+    /**
+     * Initializes the skybox
+     */
     public void initSky() {
         Texture skBK = assetManager.loadTexture("Textures/mp_deception/deception_pass_bk.tga");
         Texture skDN = assetManager.loadTexture("Textures/mp_deception/deception_pass_dn.tga");
@@ -303,6 +333,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         rootNode.attachChild(sky);
     }
 
+    /**
+     * Initializes the sunlight on the map
+     */
     private void initLights() {
         DirectionalLight sun = new DirectionalLight();
         sun.setDirection(new Vector3f(1, -0.5f, 1).normalizeLocal());
@@ -315,6 +348,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         rootNode.addLight(sun2);
     }
 
+    /**
+     * Adds the crosshair to the screen
+     */
     private void initCrossHair() {
         guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
         BitmapText ch = new BitmapText(guiFont, false);
@@ -325,6 +361,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         guiNode.attachChild(ch);
     }
 
+    /**
+     * Loads, scales, and adds the map to the scene
+     */
     public void initMap() {
         // We load the scene from the zip file and adjust its size.
         //assetManager.registerLocator("town.zip", ZipLocator.class);
@@ -343,6 +382,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         rootNode.attachChild(sceneModel);
     }
 
+    /**
+     * Adds the player's weapon to the scene
+     */
     public void initWeapon() {
         weapon = assetManager.loadModel("Models/Beretta/Beretta.j3o");
         weapon.setLocalScale(1.5f);
@@ -350,20 +392,25 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         rootNode.attachChild(weapon);
     }
 
+    /**
+     * Initializes the Main Menu, with the logo and username/ip fields
+     */
     public void initMenu() {
         GuiGlobals.initialize(this);
         BaseStyles.loadGlassStyle();
         GuiGlobals.getInstance().getStyles().setDefaultStyle("glass");
 
+        //creates a new gui container
         menuWindow = new Container();
         guiNode.attachChild(menuWindow);
         menuWindow.setLocalTranslation(200, settings.getHeight() - 200, 0);
 
+        //adds the GSPA logo
         Label title = new Label("");
         title.setBackground(new IconComponent("Textures/menu-banner.png"));
         menuWindow.addChild(title);
 
-        //FIRST WINDOW
+        //Adds connection text fields and labels (and connect button)
         final Label lbConnect = menuWindow.addChild(new Label("Server Connection"));
         lbConnect.setFont(ubuntu);
         lbConnect.setFontSize(30f);
@@ -393,12 +440,18 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         startGame.setFont(ubuntu);
         startGame.setFontSize(25f);
 
+        //defines what happens on connect button press
         startGame.addClickCommands(new Command<Button>() {
             @Override
             public void execute(Button source) {
+                //gets the values from the textfields (and if not shows 'connection refused')
                 String usr = usernameTf.getText();
                 String ip = ipAddrTf.getText();
+
+                //sets the player's name
                 player.setPlayerId(usr);
+
+                //tries to establish a connection to 
                 client = new Client(gegenschlaegst);
                 try {
                     client.connect(ip);
@@ -423,6 +476,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     List<Button> teamButtons = new ArrayList<>();
 
+    /**
+     * Displays the teamMenu if the server sends the teamList. When the player
+     * chooses a team, the menu is closed and the game starts.
+     *
+     * @param teams the list of teams
+     */
     public void teamMenu(List<String> teams) {
         System.out.println("ou yesse!!!");
         final Label lbTeam = menuWindow.addChild(new Label("Team Selection"));
@@ -464,8 +523,15 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
     }
 
+    /**
+     * Gets called when the server sends a message to the client, and reacts to
+     * the message.
+     *
+     * @param obj
+     */
     @Override
     public void receive(Object obj) {
+        //When any type of list is received
         if (obj instanceof List) {
             List objects = (List) obj;
             if (objects.size() == 0) {
@@ -475,11 +541,21 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             if (objects.get(0) instanceof PlayerData) {
 
             }
+
+            //calls the teamMenu when the teamList is received
             if (objects.get(0) instanceof String) { //Teams List
                 teams = (List<String>) obj;
-                System.out.println("Reams receivesd");
+                System.out.println("Teams Received");
+                gegenschlaegst.enqueue(new Runnable() {
+                    @Override
+                    public void run() {
+                        teamMenu(teams);
+                    }
+                });
             }
         }
+
+        //Updates a player if his playerData is received
         if (obj instanceof PlayerData) {
             PlayerData pd = (PlayerData) obj;
             synchronized (players) {
@@ -488,6 +564,10 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 }
             }
         }
+
+        //If damage is received and the destination is the own player, the 
+        //  player is damaged and shown a red screen
+        //A gun sound is played on receive
         if (obj instanceof Damage) {
             Damage dmg = (Damage) obj;
             if (dmg.getPlayer().equals(player.getPlayerId())) {
@@ -496,37 +576,61 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             }
             this.enqueue(new Callable<Integer>() {
                 public Integer call() throws Exception {
-                    audio.playGunSound();
+                    gegenschlaegst.enqueue(new Runnable() {
+                        @Override
+                        public void run() {
+                            audio.playGunSound();
+                        }
+                    });
                     return 0;
                 }
 
             });
         }
 
+        //If a playerstatus of type death or killedhimself is received
+        // a tombstone is placed on the player's position.
         if (obj instanceof PlayerStatus) {
+            final PlayerStatus.Type status = ((PlayerStatus) obj).getType();
             final String player = ((PlayerStatus) obj).getPlayerID();
-            this.enqueue(new Callable<Integer>() {
-                public Integer call() throws Exception {
-                    Spatial killedOne = playerSpatials.get(player);
-                    if (killedOne == null) {
+
+            if (status.equals(PlayerStatus.Type.DEAD) || status.equals(PlayerStatus.Type.KILLEDHIMSELF)) {
+                this.enqueue(new Callable<Integer>() {
+                    public Integer call() throws Exception {
+                        Spatial killedOne = playerSpatials.get(player);
+                        if (killedOne == null) {
+                            return 0;
+                        }
+                        playerSpatials.put("", weapon);
+                        Spatial rip = assetManager.loadModel(
+                                "Models/Tombstone_RIP_/Tombstone_RIP_obj.j3o");
+                        rip.setLocalScale(1f);
+                        rip.setLocalTranslation(killedOne.getLocalTranslation());
+                        rootNode.attachChild(rip);
+                        playerSpatials.get(player).removeFromParent();
+                        playerSpatials.remove(player);
+                        killedOne.removeFromParent();
                         return 0;
                     }
-                    playerSpatials.put("", weapon);
-                    Spatial rip = assetManager.loadModel("Models/Tombstone_RIP_/Tombstone_RIP_obj.j3o");
-                    rip.setLocalScale(1f);
-                    rip.setLocalTranslation(killedOne.getLocalTranslation());
-                    rootNode.attachChild(rip);
-                    playerSpatials.get(player).removeFromParent();
-                    playerSpatials.remove(player);
-                    killedOne.removeFromParent();
-                    return 0;
-                }
 
-            });
+                });
+            }
         }
 
+        if(obj instanceof String) {
+            final String receivedMsg = (String)obj;
+            gegenschlaegst.enqueue(new Runnable() {
+                @Override
+                public void run() {
+                    setStatusText(receivedMsg);
+                }
+            });
+        }
     }
 
+    /**
+     * Creates or Updates Playerobjects, based on the players map
+     */
     public void updatePlayerObjects() {
         synchronized (players) {
             for (String pl : players.keySet()) {
@@ -550,6 +654,10 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
     }
 
+    /**
+     * Shows or hides the blood overlay
+     * @param show 
+     */
     public void showblood(boolean show) {
         if (show) {
             hudBlood.setImage(assetManager, "Textures/blood.png", true);
@@ -558,6 +666,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
     }
 
+    /**
+     * Initializes the HUD of the game (Displayed Text and Images).
+     */
     public void initHUD() {
         hudBlood = new Picture("HUD Picture");
         hudBlood.setImage(assetManager, "Textures/noblood.png", true);
@@ -574,44 +685,63 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         guiNode.attachChild(pic);
 
         BitmapText name = new BitmapText(ubuntu, false);
-        name.setSize(guiFont.getCharSet().getRenderedSize());      // font size
-        name.setColor(ColorRGBA.White);                             // font color
-        name.setText(player.getPlayerId());             // the text
+        name.setSize(guiFont.getCharSet().getRenderedSize());
+        name.setColor(ColorRGBA.White);
+        name.setText(player.getPlayerId());
         name.setSize(24);
-        name.setLocalTranslation(20, name.getLineHeight() + 80, 0); // position
+        name.setLocalTranslation(20, name.getLineHeight() + 80, 0); 
         guiNode.attachChild(name);
 
         BitmapText team = new BitmapText(ubuntu, false);
-        team.setSize(guiFont.getCharSet().getRenderedSize());      // font size
-        team.setColor(ColorRGBA.Yellow);                             // font color
-        team.setText(player.getTeam());             // the text
+        team.setSize(guiFont.getCharSet().getRenderedSize());
+        team.setColor(ColorRGBA.Yellow);
+        team.setText(player.getTeam());
         team.setSize(24);
-        team.setLocalTranslation(40 + name.getLineWidth(), name.getLineHeight() + 80, 0); // position
+        team.setLocalTranslation(40 + name.getLineWidth(), name.getLineHeight() + 80, 0); 
         guiNode.attachChild(team);
 
         hudHealth = new BitmapText(ubuntu, false);
-        hudHealth.setSize(guiFont.getCharSet().getRenderedSize());      // font size
-        hudHealth.setColor(new ColorRGBA(1, 0.8f, 0.8f, 1));                             // font color
-        hudHealth.setText("Health: 10/10");             // the text
+        hudHealth.setSize(guiFont.getCharSet().getRenderedSize());
+        hudHealth.setColor(new ColorRGBA(1, 0.8f, 0.8f, 1));
+        hudHealth.setText("Health: 10/10");
         hudHealth.setSize(30);
-        hudHealth.setLocalTranslation(20, hudHealth.getLineHeight() + 50, 0); // position
+        hudHealth.setLocalTranslation(20, hudHealth.getLineHeight() + 50, 0); 
         guiNode.attachChild(hudHealth);
 
         hudArmor = new BitmapText(ubuntu, false);
-        hudArmor.setSize(guiFont.getCharSet().getRenderedSize());      // font size
-        hudArmor.setColor(new ColorRGBA(0.8f, 0.8f, 1, 1));                             // font color
-        hudArmor.setText("Teflon: 0/10");             // the text
+        hudArmor.setSize(guiFont.getCharSet().getRenderedSize());
+        hudArmor.setColor(new ColorRGBA(0.8f, 0.8f, 1, 1));
+        hudArmor.setText("Teflon: 0/10");
         hudArmor.setSize(30);
-        hudArmor.setLocalTranslation(20, hudArmor.getLineHeight() + 20, 0); // position
+        hudArmor.setLocalTranslation(20, hudArmor.getLineHeight() + 20, 0); 
         guiNode.attachChild(hudArmor);
 
+        hudKilled = new Picture("HUD Picture");
+        hudKilled.setImage(assetManager, "Textures/transparent_black.png", true);
+        hudKilled.setWidth(settings.getWidth());
+        hudKilled.setHeight(settings.getHeight());
+        hudKilled.setPosition(0, 0);
+
+        hudKilledTxt = new BitmapText(ubuntu, false);
+        hudKilledTxt.setColor(new ColorRGBA(1, 1, 1, 1));
+        hudKilledTxt.setSize(80);
+        hudKilledTxt.setText("");
+        hudKilledTxt.setLocalTranslation(100, settings.getHeight() - 100, 10);
+        guiNode.attachChild(hudKilledTxt);
     }
 
+    /**
+     * Sets the status text in the upper right corner
+     * @param statusTxt Text to display
+     */
     public void setStatusText(String statusTxt) {
         hudStatus.setText(statusTxt);             // the text
         hudStatus.setLocalTranslation(settings.getWidth() - hudStatus.getLineWidth() - 50, settings.getHeight() - 50, 0); // position
     }
 
+    /**
+     * Gets called when the game closes, disconnects the client.
+     */
     @Override
     public void destroy() {
         super.destroy();
