@@ -139,7 +139,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         hudKilled.setHeight(settings.getHeight());
         hudKilled.setPosition(0, 0);
 
-
         hudStatus = new BitmapText(ubuntu, false);
         hudStatus.setColor(new ColorRGBA(0.6f, 0.1f, 0.1f, 1));                             // font color
         hudStatus.setSize(30);
@@ -218,6 +217,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     }
 
     int countdown;
+
     public void killmyself() {
         player.setHealth(0);
         client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.DEAD));
@@ -508,11 +508,15 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             this.enqueue(new Callable<Integer>() {
                 public Integer call() throws Exception {
                     Spatial killedOne = playerSpatials.get(player);
+                    if (killedOne == null) {
+                        return 0;
+                    }
                     playerSpatials.put("", weapon);
                     Spatial rip = assetManager.loadModel("Models/Tombstone_RIP_/Tombstone_RIP_obj.j3o");
                     rip.setLocalScale(1f);
                     rip.setLocalTranslation(killedOne.getLocalTranslation());
                     rootNode.attachChild(rip);
+                    playerSpatials.get(player).removeFromParent();
                     playerSpatials.remove(player);
                     killedOne.removeFromParent();
                     return 0;
