@@ -139,6 +139,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         hudKilled.setHeight(settings.getHeight());
         hudKilled.setPosition(0, 0);
 
+
         hudStatus = new BitmapText(ubuntu, false);
         hudStatus.setColor(new ColorRGBA(0.6f, 0.1f, 0.1f, 1));                             // font color
         hudStatus.setSize(30);
