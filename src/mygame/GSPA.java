@@ -91,7 +91,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     private Picture hudBlood;
     private BitmapText hudHealth;
     private BitmapText hudArmor;
-    private BitmapText hudStatus;
     private Picture hudKilled;
     private BitmapText hudKilledTxt;
 
@@ -142,11 +141,6 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         flyCam.setMoveSpeed(0);
         flyCam.setRotationSpeed(0);
         audio.playHorseTechno();
-
-        hudStatus = new BitmapText(ubuntu, false);
-        hudStatus.setColor(new ColorRGBA(0.6f, 0.1f, 0.1f, 1));                             // font color
-        hudStatus.setSize(30);
-        guiNode.attachChild(hudStatus);
 
         //player.getPlayer().setPhysicsLocation(new Vector3f(-100, -100, -100));
         //guiNode.attachChild(hudKilled);
