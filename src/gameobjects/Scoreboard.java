@@ -95,7 +95,7 @@ public class Scoreboard {
         // j is row, i is column
         for (int j = 0; j < scoreUI[0].length; j++) {
             for (int i = 0; i < scoreUI.length; i++) {
-                scoreUI[i][j].setLocalTranslation(appSetings.getWidth() + curXOffset, appSetings.getHeight() - i * (scoreUI[i][j].getLineHeight() + VERTICAL_SPACING), 0);
+                scoreUI[i][j].setLocalTranslation(appSetings.getWidth() + curXOffset, appSetings.getHeight() - i * (scoreUI[i][j].getLineHeight() + VERTICAL_SPACING), 1);
             }
             curXOffset += colWidths[j];
         }

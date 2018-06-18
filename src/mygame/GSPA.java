@@ -3,6 +3,8 @@ package mygame;
 import beans.Damage;
 import beans.PlayerData;
 import beans.PlayerStatus;
+import beans.RoundInfo;
+import beans.RoundTime;
 import gameobjects.Scoreboard;
 import gameobjects.Player;
 import com.jme3.app.SimpleApplication;
@@ -146,12 +148,12 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         //guiNode.attachChild(hudKilled);
         scboard = new Scoreboard(guiNode, ubuntu, settings, assetManager);
         scboard.setScoreData(Scoreboard.WAIT_SCOREBOARD);
-        
+        scboard.generateScoreBoard();
+
         logWin = new LogWindowsn(guiNode, guiFont, settings, assetManager);
         logWin.initLogWindow();
         logWin.showLogWindowsn(true);
     }
-    
 
     /**
      * Update method of the game, frequency depends on the system performance.
@@ -217,13 +219,13 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         //if the player's health is less or equal than 0, he dies
         if (player.getHealth() <= 0) {
             client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.DEAD));
-            killmyself();
+            killmyself(KillType.KILL);
         }
 
         //if the player falls to far (y -150), he dies
         if (player.getPlayerData().getPosition().y < -150) {
             client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.KILLEDHIMSELF));
-            killmyself();
+            killmyself(KillType.ROUNDOVER);
         }
 
         //displays the current player health
@@ -237,13 +239,28 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
      * another player. It tells the server that the player died, and respawns
      * the player in the next 5 seconds.
      */
-    public void killmyself() {
+    public enum KillType {
+        KILL, ROUNDOVER
+    }
+
+    public void killmyself(KillType type) {
         //stop game
         player.setHealth(0);
         guiNode.attachChild(hudKilled);
         gameRunning = false;
         audio.playHorseTechno();
+        switch (type) {
+            case KILL:
+                hudKilled.setImage(assetManager, "Textures/transparent_black.png", true);
+                break;
+            case ROUNDOVER:
+                hudKilled.setImage(assetManager, "Textures/transparent_over.png", true);
+                break;
+        }
         weapon.removeFromParent();
+        client.send("gimmiscoreboardnowwwww");
+        scboard.showScoreBoard(true);
+        hudKilledTxt.setText("Round will be restarted by server");
         //thread to restart game in 5 seconds, and display a countdown to the player
         Thread t = new Thread(new Runnable() {
             @Override
@@ -288,7 +305,9 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 });
             }
         });
-        t.start();
+        if (type.equals(KillType.KILL)) {
+            t.start();
+        }
     }
 
     @Override
@@ -646,7 +665,40 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     scboard.generateScoreBoard();
                 }
             });
-            
+
+        }
+
+        if (obj instanceof RoundTime) {
+            final RoundTime info = (RoundTime) obj;
+            gegenschlaegst.enqueue(new Runnable() {
+                @Override
+                public void run() {
+                    appendLogMessage("Time left: " + info.getTimeLeft());
+                }
+            });
+            switch (info.getType()) {
+                case STARTED:
+                    if (!gameRunning) {
+                        gegenschlaegst.enqueue(new Runnable() {
+                            @Override
+                            public void run() {
+                                rootNode.attachChild(weapon);
+                                player.setHealth(10);
+                                sceneModel.setLocalRotation(Matrix3f.IDENTITY);
+                                hudKilledTxt.removeFromParent();
+                                hudKilled.removeFromParent();
+                                player.getPlayer().setPhysicsLocation(new Vector3f(0, 10, 0));
+                                audio.stopHorseTechno();
+                                gameRunning = true;
+                            }
+                        });
+                    }
+                    break;
+
+                case STOPPED:
+                    killmyself(KillType.ROUNDOVER);
+                    break;
+            }
         }
     }
 
