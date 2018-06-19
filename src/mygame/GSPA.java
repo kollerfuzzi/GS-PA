@@ -493,7 +493,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     menuWindow.removeChild(ipAddr);
                     menuWindow.removeChild(ipAddrTf);
                     menuWindow.removeChild(startGame);
-                } catch (IOException ex) {
+                } catch (IOException | NullPointerException ex) {
                     Logger.getLogger(GSPA.class.getName()).log(Level.SEVERE, null, ex);
                     appendLogMessage("Connection Refused");
                     return;
@@ -645,6 +645,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             }
         }
 
+        //display log messages from the server
         if (obj instanceof String) {
             final String receivedMsg = (String) obj;
             gegenschlaegst.enqueue(new Runnable() {
@@ -653,21 +654,24 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     appendLogMessage(receivedMsg);
                 }
             });
-            System.out.println("Status received: " + receivedMsg);
         }
 
+        //handle scoredata receive
         if (obj instanceof Object[][]) {
             final Object scoreData[][] = (Object[][]) obj;
             gegenschlaegst.enqueue(new Runnable() {
                 @Override
                 public void run() {
+                    scboard.showScoreBoard(false);
                     scboard.setScoreData(scoreData);
                     scboard.generateScoreBoard();
+                    scboard.showScoreBoard(true);
                 }
             });
-
+            System.out.println(scoreData);
         }
 
+        //handle roundtime and roundover events
         if (obj instanceof RoundTime) {
             final RoundTime info = (RoundTime) obj;
             gegenschlaegst.enqueue(new Runnable() {
