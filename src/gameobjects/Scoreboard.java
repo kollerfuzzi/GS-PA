@@ -55,7 +55,7 @@ public class Scoreboard {
      * Makes the scoreboard ready to display
      */
     public void generateScoreBoard() {
-        if (scoreData == null || scoreData.length < 0       ) {
+        if (scoreData == null || scoreData.length <= 0) {
             System.out.println("missing data for scoreboard!");
             return;
         }
