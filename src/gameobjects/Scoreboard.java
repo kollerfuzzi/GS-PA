@@ -58,7 +58,7 @@ public class Scoreboard {
         if (scoreData == null || scoreData.length <= 0) {
             System.out.println("missing data for scoreboard!");
             return;
-        }
+        }                                               
         boardBG = new Picture("HUD Picture");
 
         scoreUI = new BitmapText[scoreData.length + 1][scoreData[0].length];
@@ -68,7 +68,7 @@ public class Scoreboard {
         }
         for (int i = 0; i < scoreData.length; ++i) {
             for (int j = 0; j < scoreData[0].length; ++j) {
-                scoreUI[i + 1][j] = createTextNode(scoreData[i][j].toString());
+                scoreUI[i + 1][j] = createTextNode(String.valueOf(scoreData[i][j]));
             }
         }
         float width = arrangeText();

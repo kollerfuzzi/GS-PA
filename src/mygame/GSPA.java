@@ -225,7 +225,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         //if the player falls to far (y -150), he dies
         if (player.getPlayerData().getPosition().y < -150) {
             client.send(new PlayerStatus(player.getPlayerId(), null, PlayerStatus.Type.KILLEDHIMSELF));
-            killmyself(KillType.ROUNDOVER);
+            killmyself(KillType.KILL);
         }
 
         //displays the current player health
@@ -721,7 +721,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
                 if (playerSpatials.containsKey(pl)) {
                     Spatial gameObj = playerSpatials.get(pl);
-                    Vector3f realObjectPos = data.getPosition().subtract(0, 4f, 0);
+                    Vector3f realObjectPos = data.getPosition().subtract(0, 3.5f, 0);
                     gameObj.setLocalTranslation(realObjectPos);
                     gameObj.lookAt(realObjectPos.add(data.getFacingDir()), Vector3f.UNIT_Y);
 

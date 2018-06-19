@@ -97,7 +97,6 @@ public class Client implements Runnable {
                 try {
                     receive();
                 } catch (SocketTimeoutException ex) {
-                    System.out.println("ups");
                 }
             }
         } catch (IOException | ClassNotFoundException ex) {
