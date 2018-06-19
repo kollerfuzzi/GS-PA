@@ -623,6 +623,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             final String player = ((PlayerStatus) obj).getPlayerID();
 
             if (status.equals(PlayerStatus.Type.DEAD) || status.equals(PlayerStatus.Type.KILLEDHIMSELF)) {
+                System.out.println(player + " is now dead");
                 this.enqueue(new Callable<Integer>() {
                     public Integer call() throws Exception {
                         Spatial killedOne = playerSpatials.get(player);
@@ -682,6 +683,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             });
             switch (info.getType()) {
                 case STARTED:
+                    System.out.println("round STARTED");
                     if (!gameRunning) {
                         gegenschlaegst.enqueue(new Runnable() {
                             @Override
@@ -700,6 +702,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                     break;
 
                 case STOPPED:
+                    System.out.println("round STOPPED");
                     gegenschlaegst.enqueue(new Runnable() {
                         @Override
                         public void run() {
@@ -835,3 +838,4 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     }
 
 }
+    
