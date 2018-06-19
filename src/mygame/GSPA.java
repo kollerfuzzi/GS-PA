@@ -98,6 +98,8 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
 
     private Scoreboard scboard;
     private LogWindowsn logWin;
+    
+    private RoundTime lastRoundTime;
 
     /**
      * Main method of the Game Sets the title dialog and its settings, to start
@@ -305,7 +307,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                 });
             }
         });
-        if (type.equals(KillType.KILL)) {
+        if (type.equals(KillType.KILL) && lastRoundTime != null && lastRoundTime.getTimeLeft() > 6) {
             t.start();
         }
     }
@@ -584,7 +586,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         }
 
         //Updates a player if his playerData is received
-        if (obj instanceof PlayerData) {
+        if (obj instanceof PlayerData && gameRunning) {
             PlayerData pd = (PlayerData) obj;
             synchronized (players) {
                 if (!player.getPlayerId().equals(pd.getPlayerID())) {
@@ -621,8 +623,8 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
         if (obj instanceof PlayerStatus) {
             final PlayerStatus.Type status = ((PlayerStatus) obj).getType();
             final String player = ((PlayerStatus) obj).getPlayerID();
-
-            if (status.equals(PlayerStatus.Type.DEAD) || status.equals(PlayerStatus.Type.KILLEDHIMSELF)) {
+            if (status.equals(PlayerStatus.Type.DEAD) || status.equals(PlayerStatus.Type.KILLEDHIMSELF)
+                    || status.equals(PlayerStatus.Type.DISCONNECTED)) {
                 System.out.println(player + " is now dead");
                 this.enqueue(new Callable<Integer>() {
                     public Integer call() throws Exception {
@@ -630,14 +632,15 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
                         if (killedOne == null) {
                             return 0;
                         }
-                        playerSpatials.put("", weapon);
-                        Spatial rip = assetManager.loadModel(
-                                "Models/Tombstone_RIP_/Tombstone_RIP_obj.j3o");
-                        rip.setLocalScale(1f);
-                        rip.setLocalTranslation(killedOne.getLocalTranslation());
-                        rootNode.attachChild(rip);
-                        playerSpatials.get(player).removeFromParent();
+                        if (!status.equals(PlayerStatus.Type.DISCONNECTED)) {
+                            Spatial rip = assetManager.loadModel(
+                                    "Models/Tombstone_RIP_/Tombstone_RIP_obj.j3o");
+                            rip.setLocalScale(1f);
+                            rip.setLocalTranslation(killedOne.getLocalTranslation());
+                            rootNode.attachChild(rip);
+                        }
                         playerSpatials.remove(player);
+                        players.remove(player);
                         killedOne.removeFromParent();
                         return 0;
                     }
@@ -678,6 +681,7 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
             gegenschlaegst.enqueue(new Runnable() {
                 @Override
                 public void run() {
+                    lastRoundTime = info;
                     appendLogMessage("Time left: " + info.getTimeLeft());
                 }
             });
@@ -838,4 +842,3 @@ public class GSPA extends SimpleApplication implements ActionListener, Receiver 
     }
 
 }
-    
