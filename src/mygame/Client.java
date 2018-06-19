@@ -5,6 +5,7 @@
  */
 package mygame;
 
+import beans.PlayerStatus;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -60,6 +61,7 @@ public class Client implements Runnable {
         running = false;
         try {
             send("exit");
+            send(new PlayerStatus(name, null, PlayerStatus.Type.DISCONNECTED));
             this.so.close();
         } catch (IOException ex) {
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
